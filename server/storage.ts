@@ -167,9 +167,16 @@ export class MemStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentUserId++;
     const user: User = {
-      ...insertUser,
       id,
       createdAt: new Date(),
+      username: insertUser.username,
+      password: insertUser.password,
+      email: insertUser.email,
+      fullName: insertUser.fullName,
+      phone: insertUser.phone ?? null,
+      address: insertUser.address ?? null,
+      role: insertUser.role ?? "customer",
+      isActive: insertUser.isActive ?? true
     };
     this.users.set(id, user);
     return user;
@@ -199,11 +206,14 @@ export class MemStorage implements IStorage {
 
   async createCategory(insertCategory: InsertCategory): Promise<Category> {
     const id = this.currentCategoryId++;
-    const category: Category = { ...insertCategory, id };
+    const category: Category = {
+      ...insertCategory,
+      id,
+      description: insertCategory.description ?? null, 
+    };
     this.categories.set(id, category);
     return category;
   }
-
   // Medicine operations
   async getAllMedicines(): Promise<Medicine[]> {
     return Array.from(this.medicines.values()).filter(med => med.isActive);
@@ -216,9 +226,17 @@ export class MemStorage implements IStorage {
   async createMedicine(insertMedicine: InsertMedicine): Promise<Medicine> {
     const id = this.currentMedicineId++;
     const medicine: Medicine = {
-      ...insertMedicine,
       id,
       createdAt: new Date(),
+      name: insertMedicine.name,
+      sku: insertMedicine.sku,
+      categoryId: insertMedicine.categoryId ?? null,
+      description: insertMedicine.description ?? null,
+      dosage: insertMedicine.dosage ?? null,
+      manufacturer: insertMedicine.manufacturer ?? null,
+      price: insertMedicine.price,
+      requiresPrescription: insertMedicine.requiresPrescription ?? false,
+      isActive: insertMedicine.isActive ?? true
     };
     this.medicines.set(id, medicine);
     return medicine;
@@ -254,9 +272,14 @@ export class MemStorage implements IStorage {
   async createInventory(insertInventory: InsertInventory): Promise<Inventory> {
     const id = this.currentInventoryId++;
     const inventory: Inventory = {
-      ...insertInventory,
       id,
       createdAt: new Date(),
+      medicineId: insertInventory.medicineId,
+      batchNumber: insertInventory.batchNumber,
+      quantity: insertInventory.quantity,
+      minStockLevel: insertInventory.minStockLevel ?? 10,
+      expiryDate: insertInventory.expiryDate,
+      costPrice: insertInventory.costPrice
     };
     this.inventory.set(id, inventory);
     return inventory;
@@ -287,9 +310,17 @@ export class MemStorage implements IStorage {
   async createPrescription(insertPrescription: InsertPrescription): Promise<Prescription> {
     const id = this.currentPrescriptionId++;
     const prescription: Prescription = {
-      ...insertPrescription,
       id,
       createdAt: new Date(),
+      customerId: insertPrescription.customerId,
+      pharmacistId: insertPrescription.pharmacistId ?? null,
+      prescriptionNumber: insertPrescription.prescriptionNumber,
+      doctorName: insertPrescription.doctorName,
+      status: insertPrescription.status ?? "pending",
+      notes: insertPrescription.notes ?? null,
+      issuedDate: insertPrescription.issuedDate,
+      verifiedAt: null,
+      dispensedAt: null
     };
     this.prescriptions.set(id, prescription);
     return prescription;
@@ -315,7 +346,11 @@ export class MemStorage implements IStorage {
 
   async createPrescriptionItem(insertItem: InsertPrescriptionItem): Promise<PrescriptionItem> {
     const id = this.currentPrescriptionItemId++;
-    const item: PrescriptionItem = { ...insertItem, id };
+    const item: PrescriptionItem = {
+      ...insertItem,
+      id,
+      dispensedQuantity: insertItem.dispensedQuantity ?? 0, 
+    };
     this.prescriptionItems.set(id, item);
     return item;
   }
@@ -332,9 +367,18 @@ export class MemStorage implements IStorage {
   async createSale(insertSale: InsertSale): Promise<Sale> {
     const id = this.currentSaleId++;
     const sale: Sale = {
-      ...insertSale,
       id,
       createdAt: new Date(),
+      customerId: insertSale.customerId ?? null,
+      pharmacistId: insertSale.pharmacistId,
+      prescriptionId: insertSale.prescriptionId ?? null,
+      saleNumber: insertSale.saleNumber,
+      subtotal: insertSale.subtotal,
+      discountAmount: insertSale.discountAmount ?? "0",
+      taxAmount: insertSale.taxAmount ?? "0",
+      totalAmount: insertSale.totalAmount,
+      paymentMethod: insertSale.paymentMethod,
+      status: insertSale.status ?? "completed"
     };
     this.sales.set(id, sale);
     return sale;
@@ -371,16 +415,27 @@ export class MemStorage implements IStorage {
 
   async getActiveDiscounts(): Promise<Discount[]> {
     const now = new Date();
-    return Array.from(this.discounts.values()).filter(discount => 
-      discount.isActive && 
-      new Date(discount.validFrom) <= now && 
+    return Array.from(this.discounts.values()).filter(discount =>
+      discount.isActive &&
+      new Date(discount.validFrom) <= now &&
       new Date(discount.validTo) >= now
     );
   }
 
   async createDiscount(insertDiscount: InsertDiscount): Promise<Discount> {
     const id = this.currentDiscountId++;
-    const discount: Discount = { ...insertDiscount, id };
+    const discount: Discount = {
+      id,
+      name: insertDiscount.name,
+      type: insertDiscount.type,
+      value: insertDiscount.value,
+      applicableToMedicineId: insertDiscount.applicableToMedicineId ?? null,
+      minOrderAmount: insertDiscount.minOrderAmount ?? null,
+      maxDiscountAmount: insertDiscount.maxDiscountAmount ?? null,
+      validFrom: insertDiscount.validFrom,
+      validTo: insertDiscount.validTo,
+      isActive: insertDiscount.isActive ?? true
+    };
     this.discounts.set(id, discount);
     return discount;
   }
@@ -394,11 +449,11 @@ export class MemStorage implements IStorage {
   }> {
     const totalMedicines = Array.from(this.medicines.values()).filter(med => med.isActive).length;
     const lowStockItems = (await this.getLowStockItems()).length;
-    
+
     const today = new Date().toISOString().split('T')[0];
     const todaysSales = await this.getSalesByDate(today);
     const todaysSalesAmount = todaysSales.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
-    
+
     const todaysPrescriptions = Array.from(this.prescriptions.values()).filter(p => {
       const prescDate = new Date(p.createdAt);
       return prescDate.toDateString() === new Date().toDateString();

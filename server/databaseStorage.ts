@@ -106,7 +106,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMedicine(id: number): Promise<boolean> {
     const result = await db.delete(medicines).where(eq(medicines.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Inventory operations
