@@ -86,8 +86,7 @@ def register(data: RegisterData, db: Session = Depends(get_db)):
     if db.query(Account).filter(Account.email == data.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Validate role
-    allowed_roles = {"user", "pharmacist", "admin"}
+    allowed_roles = {"customer", "pharmacist", "admin"}
     if data.role not in allowed_roles:
         raise HTTPException(status_code=400, detail="Invalid role")
 
