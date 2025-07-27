@@ -25,6 +25,7 @@ DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, '../../../data.db')}"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 Base = declarative_base()
+me: bool = False
 
 # === Database Models ===
 class Account(Base):
@@ -72,6 +73,8 @@ def login(data: LoginData, db: Session = Depends(get_db)):
     if not bcrypt.checkpw(data.password.encode(), account.password.encode()):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    me = True
+
     return {
         "message": "Login successful",
         "user": account.username,
@@ -107,3 +110,14 @@ def register(data: RegisterData, db: Session = Depends(get_db)):
     db.refresh(account)
 
     return {"message": "Account created successfully", "user": account.username, "role": account.role}
+
+@app.get("/api/auth/me")
+def me():
+    if (me == True):
+        return {
+            "account": "Logged In",
+        }
+    else:
+        return {
+            "account": "Logged out",
+        }

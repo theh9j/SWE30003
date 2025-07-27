@@ -19,7 +19,7 @@ function AuthRouter() {
     queryKey: ["auth", "me"],
     queryFn: async () => {
       const response = await fetch("/api/auth/me");
-      if (!response.ok) {
+      if (!response.ok || user.account == "Logged out") {
         if (response.status === 401) {
           return null; // Not authenticated
         }
