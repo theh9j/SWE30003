@@ -17,6 +17,8 @@ export default function Customers() {
     queryFn: () => api.getUsers("customer"),
   });
 
+  const [cooldowns, setCooldowns] = useState<{ [username: string]: boolean }>({});
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
   };
@@ -25,6 +27,53 @@ export default function Customers() {
   queryKey: ["auth_me"],
   queryFn: () => api.getMe(),
   });
+
+  const [users, setUsers] = useState([]);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch("/api/users", {
+        credentials: "include", // needed if you’re using cookies for auth
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      } else {
+        console.error("Failed to fetch users");
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  const handleToggleStatus = async (username: string) => {
+    if (cooldowns[username]) return; // already cooling down
+
+    setCooldowns((prev) => ({ ...prev, [username]: true }));
+
+    try {
+      const res = await fetch(`/api/accounts/${username}/state`, {
+        method: "PUT",
+        credentials: "include",
+      });
+      if (res.ok) {
+        fetchUsers(); // Refresh the list
+      } else {
+        console.error("Failed to toggle:", await res.text());
+      }
+    } catch (err) {
+      console.error("Error toggling status:", err);
+    }
+
+    setTimeout(() => {
+      setCooldowns((prev) => {
+        const updated = { ...prev };
+        delete updated[username];
+        return updated;
+      });
+    }, 5000);
+  };
 
   const isAdmin = auth?.role === "admin";
 
@@ -130,7 +179,7 @@ export default function Customers() {
                     </td>
                     <td className="py-4">
                       <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => handleToggleStatus(customer.username)}>
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="sm">
