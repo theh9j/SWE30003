@@ -37,7 +37,8 @@ class Account(Base):
     full_name = Column(String, nullable=False)
     phone_number = Column(String, nullable=True)
     address = Column(String, nullable=True)
-    role = Column(String, nullable=False)  # "user", "pharmacist", "admin"
+    role = Column(String, nullable=False)   # "admin", "pharmacist", or "customer"
+    status = Column(String, default="active")  # "active", "suspended", etc.
 
 Base.metadata.create_all(bind=engine)
 
@@ -62,6 +63,31 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# === Miscellaneous ===
+def is_admin(user: Account) -> bool:
+    return user.role == "admin"
+
+# === Admin Account Creation ===
+@app.on_event("startup")
+def create_admin_account():
+    db = SessionLocal()
+    existing = db.query(Account).filter_by(username="admin").first()
+    if not existing:
+        hashed_pw = bcrypt.hashpw("test123".encode(), bcrypt.gensalt()).decode()
+        admin_account = Account(
+            username="admin",
+            password=hashed_pw,
+            email="wow@gmail.com",
+            full_name="Test",
+            phone_number=None,
+            address=None,
+            role="admin",
+            status="active"
+        )
+        db.add(admin_account)
+        db.commit()
+    db.close()
 
 # === Login Endpoint ===
 @app.post("/api/auth/login")
@@ -115,4 +141,29 @@ def register(data: RegisterData, db: Session = Depends(get_db)):
 def auth_me():
     if logged_in_users:
         return {"account": "Logged in"}
-    return {"account": "Logged out"}
+
+
+#ACCOUNT MANAGER
+@app.put("/api/accounts/{target_id}/suspend")
+def suspend_account(
+    target_id: int,
+    db: Session = Depends(get_db),
+    requester: RegisterData = Depends()  # Replace with session-based auth later
+):
+    # Lookup admin who is making the request
+    admin = db.query(Account).filter(Account.username == requester.username).first()
+    if not admin or not is_admin(admin):
+        raise HTTPException(status_code=403, detail="Only admins can perform this action")
+
+    # Find target account
+    target = db.query(Account).filter(Account.id == target_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    if target.role == "admin":
+        raise HTTPException(status_code=403, detail="Cannot modify admin accounts")
+
+    # Suspend the account
+    target.status = "suspended"
+    db.commit()
+    return {"message": f"{target.username} has been suspended"}
