@@ -70,6 +70,14 @@ def get_db():
 def is_admin(user: Account) -> bool:
     return user.role == "admin"
 
+# MANUAL LOGOUT (TEMP)
+@app.get("/manual-logout")
+def manual_logout():
+    response = JSONResponse(content={"message": "Manually logged out"})
+    response.delete_cookie("session_user")
+    return response
+
+
 # === Admin Account Creation ===
 @app.on_event("startup")
 def create_admin_account():
@@ -155,12 +163,16 @@ def register(data: RegisterData, db: Session = Depends(get_db)):
 def auth_me(request: Request, db: Session = Depends(get_db)):
     username = request.cookies.get("session_user")
     if not username:
-        return {"account": "Logged out"}
+        return Response(status_code=204)  # No Content
 
-    account = db.query(Account).filter_by(username=username).first()
-    if account:
-        return {"account": "Logged in"}
-    return {"account": "Logged out"}
+    account = db.query(Account).filter(Account.username == username).first()
+    if not account:
+        return Response(status_code=204)  # No Content
+
+    return {
+        "username": account.username,
+        "full_name": account.full_name
+    }
 
 #ACCOUNT MANAGER
 @app.put("/api/accounts/{target_id}/suspend")
