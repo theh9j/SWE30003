@@ -20,15 +20,18 @@ function AuthRouter() {
   queryFn: async () => {
     const response = await fetch("/api/auth/me");
     if (!response.ok) {
-      if (response.status === 401) {
-        return null;
-      }
+      if (response.status === 401) return null;
       throw new Error("Failed to fetch user");
-    } else if (user.account == "Logged In") {
-      return response.json();
     }
-    throw new Error("Failed to fetch user");
+
+    const data = await response.json();
+    if (data.account === "Logged in") {
+      return data;
+    }
+
+    return null;
   },
+  retry: false,
 });
 
   if (isLoading) {
