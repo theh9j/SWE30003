@@ -16,19 +16,18 @@ import Register from "@/pages/Register";
 
 function AuthRouter() {
   const { data: user, isLoading } = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: async () => {
-      const response = await fetch("/api/auth/me");
-      if (!response.ok || user.account == "Logged out") {
-        if (response.status === 401) {
-          return null; // Not authenticated
-        }
-        throw new Error("Failed to fetch user");
+  queryKey: ["auth", "me"],
+  queryFn: async () => {
+    const response = await fetch("/api/auth/me");
+    if (!response.ok || user.account == "Logged out") {
+      if (response.status === 401) {
+        return null;
       }
-      return response.json();
-    },
-    retry: false,
-  });
+      throw new Error("Failed to fetch user");
+    }
+    return response.json();
+  },
+});
 
   if (isLoading) {
     return (
