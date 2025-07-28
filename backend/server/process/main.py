@@ -209,19 +209,25 @@ def register(data: RegisterData, db: Session = Depends(get_db)):
 
 @app.get("/api/auth/me")
 def auth_me(request: Request, db: Session = Depends(get_db)):
-    username = request.cookies.get("session_user")
-    if not username:
-        return Response(status_code=204)  # No Content
+    try:
+        username = request.cookies.get("session_user")
+        if not username:
+            return Response(status_code=204)
 
-    account = db.query(Account).filter(Account.username == username).first()
-    if not account:
-        return Response(status_code=204)  # No Content
+        account = db.query(Account).filter(Account.username == username).first()
+        if not account:
+            return Response(status_code=204)
 
-    return {
-        "username": account.username,
-        "full_name": account.full_name,
-        "role": account.role
-    }
+        return {
+            "username": account.username,
+            "full_name": account.full_name,
+            "role": account.role
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 #ACCOUNT MANAGER
 @app.put("/api/accounts/{target_id}/suspend")
@@ -273,3 +279,24 @@ def update_prescription(prescription_id: int, data: PrescriptionUpdate, db: Sess
     db.commit()
     db.refresh(prescription)
     return prescription
+
+#Customers
+@app.get("/api/users")
+def get_users(role: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(Account)
+    if role:
+        query = query.filter(Account.role == role)
+    users = query.all()
+    return [
+        {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "fullName": user.full_name,
+            "phone": user.phone_number,
+            "address": user.address,
+            "role": user.role,
+            "isActive": user.status == "active",
+        }
+        for user in users
+    ]

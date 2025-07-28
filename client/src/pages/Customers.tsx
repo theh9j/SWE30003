@@ -21,6 +21,13 @@ export default function Customers() {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const { data: auth } = useQuery({
+  queryKey: ["auth_me"],
+  queryFn: () => api.getMe(),
+  });
+
+  const isAdmin = auth?.role === "admin";
+
   const filteredCustomers = customers?.filter((customer: any) =>
     customer.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -59,10 +66,12 @@ export default function Customers() {
                   className="pl-10 w-full sm:w-64"
                 />
               </div>
-              <Button onClick={() => setShowAddCustomer(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Customer
-              </Button>
+              {isAdmin && (
+                <Button onClick={() => setShowAddCustomer(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Customer
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>

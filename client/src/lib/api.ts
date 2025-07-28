@@ -15,6 +15,13 @@ export const api = {
   },
   createUser: (userData: any) => apiRequest("POST", "/api/users", userData),
   getUser: (id: number) => fetch(`/api/users/${id}`).then(res => res.json()),
+  getMe: async () => {
+    const res = await fetch(`/api/auth/me`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Failed to fetch current user");
+    return res.json();
+  },
 
   // Categories
   getCategories: () =>
