@@ -89,7 +89,8 @@ class PrescriptionCreate(BaseModel):
     customer_id: int
     doctor_name: str
     issued_date: Optional[datetime] = None
-    notes: Optional[str] = None  # ✅ Already present
+    notes: Optional[str] = None
+    status: Optional[str] = "pending"
 
 class PrescriptionUpdate(BaseModel):
     status: Optional[str] = None
@@ -109,8 +110,9 @@ class PrescriptionOut(BaseModel):
     verified_at: Optional[datetime]
     dispensed_at: Optional[datetime]
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
         
 
 # === DB Dependency ===
@@ -300,7 +302,7 @@ def create_customer(data: RegisterData, db: Session = Depends(get_db), request: 
 
 
 #Prescription
-router = APIRouter(prefix="/api/prescriptions")
+router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
 
 @router.get("/", response_model=list[PrescriptionOut])
 def get_prescriptions(db: Session = Depends(get_db)):
@@ -312,6 +314,7 @@ def create_prescription(
     db: Session = Depends(get_db),
     session_user: Optional[str] = Cookie(default=None)
 ):
+    print("Session user:", session_user)
     if not session_user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -319,15 +322,21 @@ def create_prescription(
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
 
+    customer = db.query(Account).filter_by(id=data.customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
     new = Prescription(
         prescription_number=data.prescription_number,
         customer_id=data.customer_id,
-        customer_name=db.query(Account).filter_by(id=data.customer_id).first().full_name,
+        customer_name=customer.full_name,
         doctor_id=doctor.id,
         doctor_name=data.doctor_name,
         issued_date=data.issued_date or datetime.utcnow(),
-        status="pending",
+        notes=data.notes,
+        status=data.status or "pending"
     )
+
     db.add(new)
     db.commit()
     db.refresh(new)
@@ -354,3 +363,8 @@ def get_users(role: Optional[str] = None, db: Session = Depends(get_db)):
         }
         for user in users
     ]
+
+
+
+
+app.include_router(router)
