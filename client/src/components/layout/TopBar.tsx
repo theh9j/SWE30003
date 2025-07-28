@@ -20,13 +20,16 @@ export default function TopBar({ title = "Dashboard", subtitle = "Overview of yo
     retry: false,
   });
 
-  const getUserInitials = (fullName: string) => {
-    const names = fullName.split(' ');
-    if (names.length >= 2) {
-      return (names[0][0] + names[names.length - 1][0]).toUpperCase();
-    }
-    return fullName.substring(0, 2).toUpperCase();
+  const getUserInitials = (fullName?: string | null) => {
+    if (!fullName) return '';
+
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
+
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
@@ -38,9 +41,9 @@ export default function TopBar({ title = "Dashboard", subtitle = "Overview of yo
         <div className="flex items-center space-x-4">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input 
-              type="text" 
-              placeholder="Search..." 
+            <Input
+              type="text"
+              placeholder="Search..."
               className="pl-10 pr-4 py-2 w-64 border-gray-300 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>

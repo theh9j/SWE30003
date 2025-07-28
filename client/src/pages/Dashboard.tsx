@@ -2,15 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Pill, 
-  AlertTriangle, 
-  DollarSign, 
-  FileText, 
-  Plus, 
-  ShoppingCart, 
-  UserPlus, 
-  BarChart3 
+import {
+  Pill,
+  AlertTriangle,
+  DollarSign,
+  FileText,
+  Plus,
+  ShoppingCart,
+  UserPlus,
+  BarChart3
 } from "lucide-react";
 import { api } from "@/lib/api";
 import AddMedicineModal from "@/components/modals/AddMedicineModal";
@@ -70,14 +70,24 @@ export default function Dashboard() {
   };
 
   const getMedicineWithInventory = () => {
-    if (!medicines || !inventory) return [];
-    
-    return medicines.slice(0, 3).map((medicine: any) => {
-      const medicineInventory = inventory.find((inv: any) => inv.medicineId === medicine.id);
+    const medicineArray = Array.isArray(medicines)
+      ? medicines
+      : Array.isArray(medicines?.data)
+        ? medicines.data
+        : [];
+
+    const inventoryArray = Array.isArray(inventory)
+      ? inventory
+      : Array.isArray(inventory?.data)
+        ? inventory.data
+        : [];
+
+    return medicineArray.slice(0, 3).map((medicine: any) => {
+      const medicineInventory = inventoryArray.find((inv: any) => inv.medicineId === medicine.id);
       const quantity = medicineInventory?.quantity || 0;
       const minLevel = medicineInventory?.minStockLevel || 10;
       const status = getStockStatus(quantity, minLevel);
-      
+
       return {
         ...medicine,
         quantity,
@@ -212,9 +222,9 @@ export default function Dashboard() {
                         <div className="text-sm text-gray-500">SKU: {medicine.sku}</div>
                       </td>
                       <td className="py-4 text-sm text-gray-900">
-                        {medicine.categoryId === 1 ? "Pain Relief" : 
-                         medicine.categoryId === 2 ? "Antibiotic" : 
-                         medicine.categoryId === 3 ? "Supplement" : "Other"}
+                        {medicine.categoryId === 1 ? "Pain Relief" :
+                          medicine.categoryId === 2 ? "Antibiotic" :
+                            medicine.categoryId === 3 ? "Supplement" : "Other"}
                       </td>
                       <td className="py-4 text-sm text-gray-900">{medicine.quantity} units</td>
                       <td className="py-4">
