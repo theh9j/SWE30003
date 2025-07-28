@@ -8,6 +8,7 @@ from datetime import datetime
 from sqlalchemy.ext.declarative import declarative_base
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import sessionmaker, Session
+from fastapi import Cookie
 import bcrypt
 import os
 
@@ -58,6 +59,8 @@ class Prescription(Base):
 
     issued_date = Column(DateTime, default=datetime.utcnow)
 
+    notes = Column(String, nullable=True)  # ✅ NEW FIELD
+
     status = Column(String, default="pending")
     verified_at = Column(DateTime, nullable=True)
     dispensed_at = Column(DateTime, nullable=True)
@@ -81,10 +84,9 @@ class RegisterData(BaseModel):
 class PrescriptionCreate(BaseModel):
     prescription_number: str
     customer_id: int
-    customer_name: str
-    doctor_id: int
     doctor_name: str
     issued_date: Optional[datetime] = None
+    notes: Optional[str] = None  # ✅ Already present
 
 class PrescriptionUpdate(BaseModel):
     status: Optional[str] = None
@@ -99,12 +101,14 @@ class PrescriptionOut(BaseModel):
     doctor_id: int
     doctor_name: str
     issued_date: datetime
+    notes: Optional[str]  # ✅ NEW
     status: str
     verified_at: Optional[datetime]
     dispensed_at: Optional[datetime]
 
     class Config:
         orm_mode = True
+        
 
 # === DB Dependency ===
 def get_db():
@@ -262,23 +266,31 @@ def get_prescriptions(db: Session = Depends(get_db)):
     return db.query(Prescription).all()
 
 @router.post("/", response_model=PrescriptionOut)
-def create_prescription(data: PrescriptionCreate, db: Session = Depends(get_db)):
-    new = Prescription(**data.dict())
+def create_prescription(
+    data: PrescriptionCreate,
+    db: Session = Depends(get_db),
+    session_user: Optional[str] = Cookie(default=None)
+):
+    if not session_user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    doctor = db.query(Account).filter_by(username=session_user).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+
+    new = Prescription(
+        prescription_number=data.prescription_number,
+        customer_id=data.customer_id,
+        customer_name=db.query(Account).filter_by(id=data.customer_id).first().full_name,
+        doctor_id=doctor.id,
+        doctor_name=data.doctor_name,
+        issued_date=data.issued_date or datetime.utcnow(),
+        status="pending",
+    )
     db.add(new)
     db.commit()
     db.refresh(new)
     return new
-
-@router.put("/{prescription_id}", response_model=PrescriptionOut)
-def update_prescription(prescription_id: int, data: PrescriptionUpdate, db: Session = Depends(get_db)):
-    prescription = db.query(Prescription).filter(Prescription.id == prescription_id).first()
-    if not prescription:
-        raise HTTPException(status_code=404, detail="Prescription not found")
-    for key, value in data.dict(exclude_unset=True).items():
-        setattr(prescription, key, value)
-    db.commit()
-    db.refresh(prescription)
-    return prescription
 
 #Customers
 @app.get("/api/users")
