@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
+from fastapi.responses import JSONResponse
+from fastapi import Request
 from sqlalchemy.orm import sessionmaker, Session
 import bcrypt
 import os
@@ -93,19 +95,31 @@ def create_admin_account():
 @app.post("/api/auth/login")
 def login(data: LoginData, db: Session = Depends(get_db)):
     account = db.query(Account).filter(Account.username == data.username).first()
-    if not account:
+
+    if not account or not bcrypt.checkpw(data.password.encode(), account.password.encode()):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if not bcrypt.checkpw(data.password.encode(), account.password.encode()):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    
-    logged_in_users.add(account.username)
-    return {
+    response = JSONResponse(content={
         "message": "Login successful",
         "user": account.username,
         "role": account.role,
-    }
+    })
+
+    response.set_cookie(
+        key="session_user",
+        value=account.username,
+        httponly=True,
+        samesite="Lax",  # or "Strict"
+    )
+
+    return response
+
+# === Logout Endpoint ===
+@app.post("/api/auth/logout")
+def logout():
+    response = JSONResponse(content={"message": "Logged out"})
+    response.delete_cookie("session_user")
+    return response
 
 # === Register Endpoint ===
 @app.post("/api/auth/register")
@@ -138,10 +152,15 @@ def register(data: RegisterData, db: Session = Depends(get_db)):
     return {"message": "Account created successfully", "user": account.username, "role": account.role}
 
 @app.get("/api/auth/me")
-def auth_me():
-    if logged_in_users:
-        return {"account": "Logged in"}
+def auth_me(request: Request, db: Session = Depends(get_db)):
+    username = request.cookies.get("session_user")
+    if not username:
+        return {"account": "Logged out"}
 
+    account = db.query(Account).filter_by(username=username).first()
+    if account:
+        return {"account": "Logged in"}
+    return {"account": "Logged out"}
 
 #ACCOUNT MANAGER
 @app.put("/api/accounts/{target_id}/suspend")
