@@ -1,10 +1,12 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request, Response, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, create_engine, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from typing import Optional
+from datetime import datetime
 from sqlalchemy.ext.declarative import declarative_base
 from fastapi.responses import JSONResponse
-from fastapi import Request
 from sqlalchemy.orm import sessionmaker, Session
 import bcrypt
 import os
@@ -42,6 +44,24 @@ class Account(Base):
     role = Column(String, nullable=False)   # "admin", "pharmacist", or "customer"
     status = Column(String, default="active")  # "active", "suspended", etc.
 
+class Prescription(Base):
+    __tablename__ = "prescriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prescription_number = Column(String, unique=True, nullable=False)
+
+    customer_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    customer_name = Column(String, nullable=False)
+
+    doctor_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    doctor_name = Column(String, nullable=False)
+
+    issued_date = Column(DateTime, default=datetime.utcnow)
+
+    status = Column(String, default="pending")
+    verified_at = Column(DateTime, nullable=True)
+    dispensed_at = Column(DateTime, nullable=True)
+
 Base.metadata.create_all(bind=engine)
 
 # === Pydantic Schemas ===
@@ -57,6 +77,34 @@ class RegisterData(BaseModel):
     phone: str | None = None
     address: str | None = None
     role: str  # Will validate below
+
+class PrescriptionCreate(BaseModel):
+    prescription_number: str
+    customer_id: int
+    customer_name: str
+    doctor_id: int
+    doctor_name: str
+    issued_date: Optional[datetime] = None
+
+class PrescriptionUpdate(BaseModel):
+    status: Optional[str] = None
+    verified_at: Optional[datetime] = None
+    dispensed_at: Optional[datetime] = None
+
+class PrescriptionOut(BaseModel):
+    id: int
+    prescription_number: str
+    customer_id: int
+    customer_name: str
+    doctor_id: int
+    doctor_name: str
+    issued_date: datetime
+    status: str
+    verified_at: Optional[datetime]
+    dispensed_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
 
 # === DB Dependency ===
 def get_db():
@@ -171,7 +219,8 @@ def auth_me(request: Request, db: Session = Depends(get_db)):
 
     return {
         "username": account.username,
-        "full_name": account.full_name
+        "full_name": account.full_name,
+        "role": account.role
     }
 
 #ACCOUNT MANAGER
@@ -198,3 +247,29 @@ def suspend_account(
     target.status = "suspended"
     db.commit()
     return {"message": f"{target.username} has been suspended"}
+
+#Prescription
+router = APIRouter(prefix="/api/prescriptions")
+
+@router.get("/", response_model=list[PrescriptionOut])
+def get_prescriptions(db: Session = Depends(get_db)):
+    return db.query(Prescription).all()
+
+@router.post("/", response_model=PrescriptionOut)
+def create_prescription(data: PrescriptionCreate, db: Session = Depends(get_db)):
+    new = Prescription(**data.dict())
+    db.add(new)
+    db.commit()
+    db.refresh(new)
+    return new
+
+@router.put("/{prescription_id}", response_model=PrescriptionOut)
+def update_prescription(prescription_id: int, data: PrescriptionUpdate, db: Session = Depends(get_db)):
+    prescription = db.query(Prescription).filter(Prescription.id == prescription_id).first()
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+    for key, value in data.dict(exclude_unset=True).items():
+        setattr(prescription, key, value)
+    db.commit()
+    db.refresh(prescription)
+    return prescription
