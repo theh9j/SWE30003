@@ -20,9 +20,7 @@ function AuthRouter() {
     queryFn: async () => {
       const response = await fetch("/api/auth/me");
       if (!response.ok) {
-        if (response.status === 401) {
-          return null; // Not authenticated
-        }
+        if (response.status === 401) return null;
         throw new Error("Failed to fetch user");
       }
       return response.json();
@@ -53,15 +51,17 @@ function AuthRouter() {
   return (
     <Layout>
       <Switch>
-        <Route path="/login" component={() => <Dashboard />} />
-        <Route path="/register" component={() => <Dashboard />} />
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/inventory" component={Inventory} />
         <Route path="/prescriptions" component={Prescriptions} />
         <Route path="/customers" component={Customers} />
-        <Route path="/sales" component={Sales} />
-        <Route path="/reports" component={Reports} />
+        {user.role === "pharmacist" && (
+          <>
+            <Route path="/sales" component={Sales} />
+            <Route path="/reports" component={Reports} />
+          </>
+        )}
         <Route component={NotFound} />
       </Switch>
     </Layout>

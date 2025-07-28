@@ -35,15 +35,18 @@ logged_in_users = set()
 # === Database Models ===
 class Account(Base):
     __tablename__ = "accounts"
+
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
-    email = Column(String, unique=True, nullable=False)
     full_name = Column(String, nullable=False)
+    email = Column(String, nullable=False)
     phone_number = Column(String, nullable=True)
     address = Column(String, nullable=True)
-    role = Column(String, nullable=False)   # "admin", "pharmacist", or "customer"
-    status = Column(String, default="active")  # "active", "suspended", etc.
+    role = Column(String, nullable=False)
+    status = Column(String, default="active")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class Prescription(Base):
     __tablename__ = "prescriptions"
@@ -145,7 +148,8 @@ def create_admin_account():
             phone_number=None,
             address=None,
             role="admin",
-            status="active"
+            status="active",
+            created_at=None
         )
         db.add(admin_account)
         db.commit()
@@ -225,7 +229,8 @@ def auth_me(request: Request, db: Session = Depends(get_db)):
         return {
             "username": account.username,
             "full_name": account.full_name,
-            "role": account.role
+            "role": account.role,
+            "createdAt": account.created_at
         }
 
     except Exception as e:
@@ -309,6 +314,7 @@ def get_users(role: Optional[str] = None, db: Session = Depends(get_db)):
             "address": user.address,
             "role": user.role,
             "isActive": user.status == "active",
+            "createdAt": user.created_at
         }
         for user in users
     ]
