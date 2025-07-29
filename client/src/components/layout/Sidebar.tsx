@@ -1,17 +1,16 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  LayoutDashboard, 
-  Package, 
-  FileText, 
-  Users, 
-  ShoppingCart, 
-  BarChart3, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Package,
+  FileText,
+  Users,
+  ShoppingCart,
+  BarChart3,
   LogOut,
-  Pill
+  Pill,
 } from "lucide-react";
 
 const navigationItems = [
@@ -28,6 +27,17 @@ export default function Sidebar() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // 🔒 Get current user info
+  const { data: user } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) return null;
+      return res.json();
+    },
+    retry: false,
+  });
+
   const logoutMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/auth/logout", {
@@ -39,7 +49,6 @@ export default function Sidebar() {
       return response.json();
     },
     onSuccess: () => {
-      // Clear all cache
       queryClient.clear();
       toast({
         title: "Logged out",
@@ -73,33 +82,48 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
-      
+
       <nav className="mt-6">
         <div className="px-3">
           <ul className="space-y-1">
-            {navigationItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href || (item.href === "/dashboard" && location === "/");
-              
-              return (
-                <li key={item.href}>
-                  <Link href={item.href}>
-                    <a className={cn(
-                      "flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors",
-                      isActive 
-                        ? "bg-blue-50 text-blue-600 border-r-2 border-blue-600" 
-                        : "text-gray-700 hover:bg-gray-50"
-                    )}>
-                      <Icon className="mr-3 h-5 w-5" />
-                      {item.label}
-                    </a>
-                  </Link>
-                </li>
-              );
-            })}
+            {navigationItems
+              .filter((item) => {
+                // ❌ Hide Customers and Reports for customer role
+                if (
+                  user?.role === "customer" &&
+                  (item.href === "/customers" || item.href === "/reports")
+                ) {
+                  return false;
+                }
+                return true;
+              })
+              .map((item) => {
+                const Icon = item.icon;
+                const isActive =
+                  location === item.href ||
+                  (item.href === "/dashboard" && location === "/");
+
+                return (
+                  <li key={item.href}>
+                    <Link href={item.href}>
+                      <a
+                        className={cn(
+                          "flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors",
+                          isActive
+                            ? "bg-blue-50 text-blue-600 border-r-2 border-blue-600"
+                            : "text-gray-700 hover:bg-gray-50"
+                        )}
+                      >
+                        <Icon className="mr-3 h-5 w-5" />
+                        {item.label}
+                      </a>
+                    </Link>
+                  </li>
+                );
+              })}
           </ul>
         </div>
-        
+
         <div className="mt-8 px-3 border-t border-gray-200 pt-4">
           <button
             onClick={handleLogout}

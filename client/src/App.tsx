@@ -1,18 +1,18 @@
-import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/not-found";
-import Layout from "@/components/layout/Layout";
-import Dashboard from "@/pages/Dashboard";
-import Inventory from "@/pages/Inventory";
-import Prescriptions from "@/pages/Prescriptions";
-import Customers from "@/pages/Customers";
-import Sales from "@/pages/Sales";
-import Reports from "@/pages/Reports";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
+  import { Switch, Route } from "wouter";
+  import { queryClient } from "./lib/queryClient";
+  import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+  import { Toaster } from "@/components/ui/toaster";
+  import { TooltipProvider } from "@/components/ui/tooltip";
+  import NotFound from "@/pages/not-found";
+  import Layout from "@/components/layout/Layout";
+  import Dashboard from "@/pages/Dashboard";
+  import Inventory from "@/pages/Inventory";
+  import Prescriptions from "@/pages/Prescriptions";
+  import Customers from "@/pages/Customers";
+  import Sales from "@/pages/Sales";
+  import Reports from "@/pages/Reports";
+  import Login from "@/pages/Login";
+  import Register from "@/pages/Register";
 
 function AuthRouter() {
   const { data: user, isLoading } = useQuery({
@@ -21,7 +21,7 @@ function AuthRouter() {
       const response = await fetch("/api/auth/me");
       if (!response.ok) {
         if (response.status === 401) {
-          return null; // Not authenticated
+          return null;
         }
         throw new Error("Failed to fetch user");
       }
@@ -50,6 +50,8 @@ function AuthRouter() {
     );
   }
 
+  const isPharmacist = user.role === "pharmacist";
+
   return (
     <Layout>
       <Switch>
@@ -59,24 +61,28 @@ function AuthRouter() {
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/inventory" component={Inventory} />
         <Route path="/prescriptions" component={Prescriptions} />
-        <Route path="/customers" component={Customers} />
         <Route path="/sales" component={Sales} />
-        <Route path="/reports" component={Reports} />
+
+        {user.role === "pharmacist" && <Route path="/customers" component={Customers} />}
+        {user.role === "pharmacist" && <Route path="/reports" component={Reports} />}
+
         <Route component={NotFound} />
       </Switch>
     </Layout>
   );
 }
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <AuthRouter />
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-}
 
-export default App;
+
+  function App() {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <AuthRouter />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  export default App;

@@ -22,6 +22,23 @@ export const api = {
     if (!res.ok) throw new Error("Failed to fetch current user");
     return res.json();
   },
+  
+  updateUserStatus: async (id: number, isActive: boolean) => {
+    const response = await fetch(`/api/users/${id}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ isActive }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to update status");
+    }
+
+    return response.json();
+  },
 
   // Categories
   getCategories: () =>
