@@ -19,12 +19,7 @@ function AuthRouter() {
     queryKey: ["auth", "me"],
     queryFn: async () => {
       const response = await fetch("/api/auth/me");
-      if (!response.ok) {
-        if (response.status === 401) {
-          return null;
-        }
-        throw new Error("Failed to fetch user");
-      }
+      if (!response.ok) return null;
       return response.json();
     },
     retry: false,
@@ -50,27 +45,39 @@ function AuthRouter() {
     );
   }
 
+  const isAdmin = user.username === "admin";
   const isPharmacist = user.role === "pharmacist";
+  const isCustomer = user.role === "customer";
 
   return (
     <Layout>
       <Switch>
-        <Route path="/login" component={() => <Dashboard />} />
-        <Route path="/register" component={() => <Dashboard />} />
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
+
+        {/* Shared access */}
         <Route path="/inventory" component={Inventory} />
         <Route path="/prescriptions" component={Prescriptions} />
-        <Route path="/sales" component={Sales} />
+        <Route path="/customers" component={Customers} />
 
-        {user.role === "pharmacist" && <Route path="/customers" component={Customers} />}
-        {user.role === "pharmacist" && <Route path="/reports" component={Reports} />}
+        {/* Admin-only access */}
+        {isAdmin && <Route path="/sales" component={Sales} />}
+        {isAdmin && <Route path="/reports" component={Reports} />}
+
+        {/* Block others from restricted pages */}
+        {!isAdmin && (
+          <>
+            <Route path="/sales" component={NotFound} />
+            <Route path="/reports" component={NotFound} />
+          </>
+        )}
 
         <Route component={NotFound} />
       </Switch>
     </Layout>
   );
 }
+
 
 
 
