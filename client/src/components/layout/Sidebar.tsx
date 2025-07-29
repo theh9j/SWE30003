@@ -27,7 +27,6 @@ export default function Sidebar() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // 🔒 Get current user info
   const { data: user } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: async () => {
@@ -69,6 +68,8 @@ export default function Sidebar() {
     logoutMutation.mutate();
   };
 
+  const isAdmin = user?.username === "admin";
+
   return (
     <aside className="w-64 bg-white shadow-lg border-r border-gray-200 fixed h-full z-10">
       <div className="p-6 border-b border-gray-200">
@@ -88,13 +89,16 @@ export default function Sidebar() {
           <ul className="space-y-1">
             {navigationItems
               .filter((item) => {
-                // ❌ Hide Customers and Reports for customer role
-                if (
-                  user?.role === "customer" &&
-                  (item.href === "/customers" || item.href === "/reports")
-                ) {
+                // Only admin sees Sales & Reports
+                if ((item.href === "/sales" || item.href === "/reports") && !isAdmin) {
                   return false;
                 }
+
+                // Customers cannot see Customers
+                if (user?.role === "customer" && item.href === "/customers") {
+                  return false;
+                }
+
                 return true;
               })
               .map((item) => {

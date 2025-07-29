@@ -39,6 +39,20 @@ export const api = {
 
     return response.json();
   },
+  updateUser: async (id: number, userData: any) => {
+  const response = await fetch(`/api/users/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(userData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to update user");
+  }
+
+  return response.json();
+},
 
   // Categories
   getCategories: () =>
