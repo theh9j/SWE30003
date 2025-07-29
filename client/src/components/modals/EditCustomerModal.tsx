@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,17 @@ export default function EditCustomerModal({
   });
 
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (customer) {
+      setForm({
+        fullName: customer.fullName || "",
+        email: customer.email || "",
+        phone: customer.phone || "",
+        address: customer.address || "",
+      });
+    }
+  }, [customer]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -60,27 +71,32 @@ export default function EditCustomerModal({
 
         <div className="space-y-4">
           <Input
-            placeholder="Full name"
             value={form.fullName}
-            onChange={(e) => handleChange("fullName", e.target.value)}
+            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
           />
           <Input
-            placeholder="Email"
             value={form.email}
-            onChange={(e) => handleChange("email", e.target.value)}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
           <Input
-            placeholder="Phone"
             value={form.phone}
-            onChange={(e) => handleChange("phone", e.target.value)}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
-          <Input
-            placeholder="Address"
+            <Input
             value={form.address}
-            onChange={(e) => handleChange("address", e.target.value)}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
           />
 
-          <Button onClick={handleSubmit} disabled={mutation.isPending}>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              mutation.isPending ||
+              !form.fullName.trim() ||
+              !form.email.trim() ||
+              !form.phone.trim() ||
+              !form.address.trim()
+            }
+          >
             {mutation.isPending ? "Saving..." : "Save Changes"}
           </Button>
         </div>

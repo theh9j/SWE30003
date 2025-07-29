@@ -20,7 +20,7 @@ import { queryClient } from "@/lib/queryClient";
 const prescriptionSchema = z.object({
   customerId: z.coerce.number().min(1, "Customer is required"),
   prescriptionNumber: z.string().min(1, "Prescription number is required"),
-  doctorName: z.string().min(1, "Doctor name is required"),
+  pharmacistUsername: z.string().min(1, "Pharmacist is required"),
   issuedDate: z.string().min(1, "Issued date is required"),
   notes: z.string().optional(),
 });
@@ -40,12 +40,17 @@ export default function AddPrescriptionModal({ open, onOpenChange }: AddPrescrip
     queryFn: () => api.getUsers("customer"),
   });
 
+  const { data: pharmacists } = useQuery({
+    queryKey: ["/api/users", "pharmacist"],
+    queryFn: () => api.getUsers("pharmacist"),
+  });
+
   const form = useForm<PrescriptionFormData>({
     resolver: zodResolver(prescriptionSchema),
     defaultValues: {
       customerId: undefined,
       prescriptionNumber: "",
-      doctorName: "",
+      pharmacistUsername: "",
       issuedDate: "",
       notes: "",
     },
@@ -72,12 +77,25 @@ export default function AddPrescriptionModal({ open, onOpenChange }: AddPrescrip
   });
 
   const onSubmit = (data: PrescriptionFormData) => {
-    const prescriptionData = {
-      ...data,
-      status: "pending",
+    const selectedCustomer = customers?.find((c: any) => c.id === data.customerId);
+    if (!selectedCustomer) {
+      toast({
+        title: "Error",
+        description: "Selected customer not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload = {
+      customer_username: selectedCustomer.username,
+      pharmacist_username: data.pharmacistUsername,
+      prescription_number: data.prescriptionNumber,
+      issued_date: data.issuedDate,
+      notes: data.notes,
     };
 
-    createPrescriptionMutation.mutate(prescriptionData);
+    createPrescriptionMutation.mutate(payload);
   };
 
   const handleClose = () => {
@@ -145,26 +163,26 @@ export default function AddPrescriptionModal({ open, onOpenChange }: AddPrescrip
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="doctorName">Doctor Name *</Label>
-            <Input
-              id="doctorName"
-              {...form.register("doctorName")}
-              placeholder="Enter doctor's name"
-            />
-            {form.formState.errors.doctorName && (
-              <p className="text-sm text-red-600">{form.formState.errors.doctorName.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="issuedDate">Issued Date *</Label>
-            <Input
-              id="issuedDate"
-              type="date"
-              {...form.register("issuedDate")}
-            />
-            {form.formState.errors.issuedDate && (
-              <p className="text-sm text-red-600">{form.formState.errors.issuedDate.message}</p>
+            <Label htmlFor="pharmacist">Pharmacist *</Label>
+            <Select 
+              onValueChange={(value) => form.setValue("pharmacistUsername", value)}
+              value={form.watch("pharmacistUsername")}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select pharmacist" />
+              </SelectTrigger>
+              <SelectContent>
+                {pharmacists?.map((pharmacist: any) => (
+                  <SelectItem key={pharmacist.username} value={pharmacist.username}>
+                    {pharmacist.fullName} ({pharmacist.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.formState.errors.pharmacistUsername && (
+              <p className="text-sm text-red-600">
+                {form.formState.errors.pharmacistUsername.message}
+              </p>
             )}
           </div>
 

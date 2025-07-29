@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, Response, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import Column, Integer, String, create_engine, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, create_engine, DateTime, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from typing import Optional
 from datetime import datetime
@@ -9,6 +9,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi import Cookie
+from datetime import date
 import bcrypt
 import os
 
@@ -52,21 +53,13 @@ class Prescription(Base):
     __tablename__ = "prescriptions"
 
     id = Column(Integer, primary_key=True, index=True)
-    prescription_number = Column(String, unique=True, nullable=False)
-
-    customer_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
-    customer_name = Column(String, nullable=False)
-
-    doctor_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
-    doctor_name = Column(String, nullable=False)
-
-    issued_date = Column(DateTime, default=datetime.utcnow)
-
-    notes = Column(String, nullable=True)
-
-    status = Column(String, default="pending")
-    verified_at = Column(DateTime, nullable=True)
-    dispensed_at = Column(DateTime, nullable=True)
+    customer_id = Column(Integer)
+    customer_name = Column(String)
+    pharmacist_id = Column(Integer)
+    pharmacist_name = Column(String)
+    prescription_number = Column(String, unique=True)
+    issued_date = Column(Date)
+    notes = Column(String)
 
 Base.metadata.create_all(bind=engine)
 
@@ -85,12 +78,11 @@ class RegisterData(BaseModel):
     role: str  # Will validate below
 
 class PrescriptionCreate(BaseModel):
+    customer_username: str
+    pharmacist_username: str
     prescription_number: str
-    customer_id: int
-    doctor_name: str
-    issued_date: Optional[datetime] = None
-    notes: Optional[str] = None
-    status: Optional[str] = "pending"
+    issued_date: date
+    notes: str | None = None
 
 class PrescriptionUpdate(BaseModel):
     status: Optional[str] = None
@@ -113,6 +105,12 @@ class PrescriptionOut(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+class UpdateCustomerData(BaseModel):
+    fullName: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
         
 
 # === DB Dependency ===
@@ -134,28 +132,85 @@ def manual_logout():
     response.delete_cookie("session_user")
     return response
 
-
 # === Admin Account Creation ===
 @app.on_event("startup")
 def create_admin_account():
     db = SessionLocal()
-    existing = db.query(Account).filter_by(username="admin").first()
-    if not existing:
-        hashed_pw = bcrypt.hashpw("test123".encode(), bcrypt.gensalt()).decode()
-        admin_account = Account(
+
+    def hash_password(raw):
+        return bcrypt.hashpw(raw.encode(), bcrypt.gensalt()).decode()
+
+    # Create the admin account if it doesn't exist
+    if not db.query(Account).filter(Account.username == "admin").first():
+        admin = Account(
             username="admin",
-            password=hashed_pw,
+            password=hash_password("test123"),
             email="wow@gmail.com",
             full_name="Test",
-            phone_number=None,
-            address=None,
             role="admin",
             status="active",
-            created_at=None
         )
-        db.add(admin_account)
-        db.commit()
+        db.add(admin)
+
+    # Example customer accounts
+    customer_data = [
+        ("alice", "alice1@gmail.com", "Alice Johnson"),
+        ("bob", "bob2@gmail.com", "Bob Smith"),
+        ("carol", "carol3@gmail.com", "Carol White"),
+        ("david", "david4@gmail.com", "David Brown"),
+        ("eve", "eve5@gmail.com", "Eve Black"),
+        ("frank","frank6@gmail.com", "Frank Green"),
+        ("grace", "grace7@gmail.com", "Grace Lee"),
+    ]
+
+    random_addresses = [
+        "123 Baker Street",
+        "42 Wallaby Way"
+    ]
+
+    random_phones = [
+        "0901234567",
+        "0912345678",
+        "0987654321"
+    ]
+
+    for i, (username, email, full_name) in enumerate(customer_data):
+        if not db.query(Account).filter(Account.username == username).first():
+            address = random_addresses.pop() if random_addresses else None
+            phone = random_phones.pop() if random_phones else None
+
+            db.add(Account(
+                username=username,
+                password=hash_password("test123"),
+                email=email,
+                full_name=full_name,
+                role="customer",
+                status="active",
+                address=address,
+                phone_number=phone
+            ))
+
+    # Example pharmacist accounts
+    pharmacist_data = [
+        ("pharma1", "pharma1@gmail.com", "Dr. John Med"),
+        ("pharma2", "pharma2@gmail.com", "Dr. Jane Cure"),
+        ("pharma3", "pharma3@gmail.com", "Dr. Amy Dose"),
+    ]
+
+    for username, email, full_name in pharmacist_data:
+        if not db.query(Account).filter(Account.username == username).first():
+            db.add(Account(
+                username=username,
+                password=hash_password("test123"),
+                email=email,
+                full_name=full_name,
+                role="pharmacist",
+                status="active"
+            ))
+
+    db.commit()
     db.close()
+
 
 # === Login Endpoint ===
 @app.post("/api/auth/login")
@@ -300,6 +355,29 @@ def create_customer(data: RegisterData, db: Session = Depends(get_db), request: 
 
     return {"message": "Customer account created", "id": customer.id}
 
+@app.put("/api/users/{user_id}")
+def update_customer(user_id: int, data: UpdateCustomerData, db: Session = Depends(get_db), request: Request = None):
+    session_user = request.cookies.get("session_user")
+    if not session_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    current = db.query(Account).filter(Account.username == session_user).first()
+    if not current or current.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin can update customer info")
+
+    customer = db.query(Account).filter(Account.id == user_id, Account.role == "customer").first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    customer.full_name = data.fullName
+    customer.email = data.email
+    customer.phone_number = data.phone
+    customer.address = data.address
+
+    db.commit()
+    db.refresh(customer)
+
+    return {"message": "Customer updated successfully"}
 
 #Prescription
 router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
@@ -308,39 +386,31 @@ router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
 def get_prescriptions(db: Session = Depends(get_db)):
     return db.query(Prescription).all()
 
-@router.post("/", response_model=PrescriptionOut)
-def create_prescription(
-    data: PrescriptionCreate,
-    db: Session = Depends(get_db),
-    session_user: Optional[str] = Cookie(default=None)
-):
-    print("Session user:", session_user)
-    if not session_user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+@app.post("/api/prescriptions")
+def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(get_db)):
+    # Interpret customerId as username
+    customer = db.query(Account).filter(Account.username == prescription.customerId).first()
+    pharmacist = db.query(Account).filter(Account.username == prescription.pharmacistUsername).first()
 
-    doctor = db.query(Account).filter_by(username=session_user).first()
-    if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
-
-    customer = db.query(Account).filter_by(id=data.customer_id).first()
-    if not customer:
+    if not customer or customer.role != "customer":
         raise HTTPException(status_code=404, detail="Customer not found")
+    if not pharmacist or pharmacist.role != "pharmacist":
+        raise HTTPException(status_code=404, detail="Pharmacist not found")
 
-    new = Prescription(
-        prescription_number=data.prescription_number,
-        customer_id=data.customer_id,
+    new_prescription = Prescription(
+        customer_id=customer.username,
         customer_name=customer.full_name,
-        doctor_id=doctor.id,
-        doctor_name=data.doctor_name,
-        issued_date=data.issued_date or datetime.utcnow(),
-        notes=data.notes,
-        status=data.status or "pending"
+        pharmacist_id=pharmacist.username,
+        pharmacist_name=pharmacist.full_name,
+        prescription_number=prescription.prescription_number,
+        issued_date=prescription.issued_date,
+        notes=prescription.notes,
     )
 
-    db.add(new)
+    db.add(new_prescription)
     db.commit()
-    db.refresh(new)
-    return new
+
+    return {"message": "Prescription created successfully"}
 
 #Customers
 @app.get("/api/users")
