@@ -16,6 +16,17 @@ export default function Inventory() {
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
+  // 👤 Fetch current user to check role
+  const { data: user } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) return null;
+      return res.json();
+    },
+    retry: false,
+  });
+
   const { data: medicines, isLoading } = useQuery({
     queryKey: ["/api/medicines"],
     queryFn: api.getMedicines,
@@ -63,13 +74,13 @@ export default function Inventory() {
 
   const getMedicinesWithInventory = () => {
     if (!medicines || !inventory) return [];
-    
+
     return medicines.map((medicine: any) => {
       const medicineInventory = inventory.find((inv: any) => inv.medicineId === medicine.id);
       const quantity = medicineInventory?.quantity || 0;
       const minLevel = medicineInventory?.minStockLevel || 10;
       const status = getStockStatus(quantity, minLevel);
-      
+
       return {
         ...medicine,
         quantity,
@@ -80,7 +91,7 @@ export default function Inventory() {
         batchNumber: medicineInventory?.batchNumber || "N/A",
         expiryDate: medicineInventory?.expiryDate || null,
       };
-    }).filter((medicine: any) => 
+    }).filter((medicine: any) =>
       medicine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       medicine.sku.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -108,7 +119,7 @@ export default function Inventory() {
   return (
     <div>
       <TopBar title="Inventory" subtitle="Manage your medicine stock and inventory" />
-      
+
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -123,10 +134,12 @@ export default function Inventory() {
                   className="pl-10 w-full sm:w-64"
                 />
               </div>
-              <Button onClick={() => setShowAddMedicine(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Medicine
-              </Button>
+              {user?.role === "pharmacist" && (
+                <Button onClick={() => setShowAddMedicine(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Medicine
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -180,17 +193,15 @@ export default function Inventory() {
                     <td className="py-4 text-sm text-gray-900">{formatDate(medicine.expiryDate)}</td>
                     <td className="py-4 text-sm text-gray-900">${medicine.price}</td>
                     <td className="py-4">
-                      <Badge className={medicine.statusClass}>
-                        {medicine.status}
-                      </Badge>
+                      <Badge className={medicine.statusClass}>{medicine.status}</Badge>
                     </td>
                     <td className="py-4">
                       <div className="flex space-x-2">
                         <Button variant="ghost" size="sm">
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => deleteMutation.mutate(medicine.id)}
                           disabled={deleteMutation.isPending}
