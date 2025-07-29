@@ -11,6 +11,7 @@ import {
   BarChart3,
   LogOut,
   Pill,
+  User,
 } from "lucide-react";
 
 const navigationItems = [
@@ -42,9 +43,7 @@ export default function Sidebar() {
       const response = await fetch("/api/auth/logout", {
         method: "POST",
       });
-      if (!response.ok) {
-        throw new Error("Logout failed");
-      }
+      if (!response.ok) throw new Error("Logout failed");
       return response.json();
     },
     onSuccess: () => {
@@ -89,16 +88,8 @@ export default function Sidebar() {
           <ul className="space-y-1">
             {navigationItems
               .filter((item) => {
-                // Only admin sees Sales & Reports
-                if ((item.href === "/sales" || item.href === "/reports") && !isAdmin) {
-                  return false;
-                }
-
-                // Customers cannot see Customers
-                if (user?.role === "customer" && item.href === "/customers") {
-                  return false;
-                }
-
+                if ((item.href === "/sales" || item.href === "/reports") && !isAdmin) return false;
+                if (user?.role === "customer" && item.href === "/customers") return false;
                 return true;
               })
               .map((item) => {
@@ -125,6 +116,21 @@ export default function Sidebar() {
                   </li>
                 );
               })}
+            <li>
+              <Link href="/profile">
+                <a
+                  className={cn(
+                    "flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors",
+                    location === "/profile"
+                      ? "bg-blue-50 text-blue-600 border-r-2 border-blue-600"
+                      : "text-gray-700 hover:bg-gray-50"
+                  )}
+                >
+                  <User className="mr-3 h-5 w-5" />
+                  Profile
+                </a>
+              </Link>
+            </li>
           </ul>
         </div>
 

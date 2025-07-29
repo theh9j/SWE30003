@@ -13,6 +13,7 @@
   import Reports from "@/pages/Reports";
   import Login from "@/pages/Login";
   import Register from "@/pages/Register";
+  import Profile from "@/pages/Profile";
 
 function AuthRouter() {
   const { data: user, isLoading } = useQuery({
@@ -54,12 +55,12 @@ function AuthRouter() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
-
+    
         {/* Shared access */}
         <Route path="/inventory" component={Inventory} />
         <Route path="/prescriptions" component={Prescriptions} />
         <Route path="/customers" component={Customers} />
-
+        <Route path="/profile" component={Profile} />
         {/* Admin-only access */}
         {isAdmin && <Route path="/sales" component={Sales} />}
         {isAdmin && <Route path="/reports" component={Reports} />}
