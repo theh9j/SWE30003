@@ -35,15 +35,18 @@ logged_in_users = set()
 # === Database Models ===
 class Account(Base):
     __tablename__ = "accounts"
+
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
-    email = Column(String, unique=True, nullable=False)
     full_name = Column(String, nullable=False)
+    email = Column(String, nullable=False)
     phone_number = Column(String, nullable=True)
     address = Column(String, nullable=True)
-    role = Column(String, nullable=False)   # "admin", "pharmacist", or "customer"
-    status = Column(String, default="active")  # "active", "suspended", etc.
+    role = Column(String, nullable=False)
+    status = Column(String, default="active")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class Prescription(Base):
     __tablename__ = "prescriptions"
@@ -59,7 +62,7 @@ class Prescription(Base):
 
     issued_date = Column(DateTime, default=datetime.utcnow)
 
-    notes = Column(String, nullable=True)  # ✅ NEW FIELD
+    notes = Column(String, nullable=True)
 
     status = Column(String, default="pending")
     verified_at = Column(DateTime, nullable=True)
@@ -86,7 +89,8 @@ class PrescriptionCreate(BaseModel):
     customer_id: int
     doctor_name: str
     issued_date: Optional[datetime] = None
-    notes: Optional[str] = None  # ✅ Already present
+    notes: Optional[str] = None
+    status: Optional[str] = "pending"
 
 class PrescriptionUpdate(BaseModel):
     status: Optional[str] = None
@@ -106,8 +110,9 @@ class PrescriptionOut(BaseModel):
     verified_at: Optional[datetime]
     dispensed_at: Optional[datetime]
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
         
 
 # === DB Dependency ===
@@ -145,7 +150,8 @@ def create_admin_account():
             phone_number=None,
             address=None,
             role="admin",
-            status="active"
+            status="active",
+            created_at=None
         )
         db.add(admin_account)
         db.commit()
@@ -158,6 +164,9 @@ def login(data: LoginData, db: Session = Depends(get_db)):
 
     if not account or not bcrypt.checkpw(data.password.encode(), account.password.encode()):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    if account.status != "active":
+        raise HTTPException(status_code=403, detail="Account is suspended")
 
     response = JSONResponse(content={
         "message": "Login successful",
@@ -225,7 +234,8 @@ def auth_me(request: Request, db: Session = Depends(get_db)):
         return {
             "username": account.username,
             "full_name": account.full_name,
-            "role": account.role
+            "role": account.role,
+            "createdAt": account.created_at
         }
 
     except Exception as e:
@@ -234,32 +244,65 @@ def auth_me(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 #ACCOUNT MANAGER
-@app.put("/api/accounts/{target_id}/suspend")
-def suspend_account(
-    target_id: int,
-    db: Session = Depends(get_db),
-    requester: RegisterData = Depends()  # Replace with session-based auth later
-):
-    # Lookup admin who is making the request
-    admin = db.query(Account).filter(Account.username == requester.username).first()
-    if not admin or not is_admin(admin):
-        raise HTTPException(status_code=403, detail="Only admins can perform this action")
+@app.put("/api/accounts/{target_username}/state")
+def state_change_account(target_username: str, db: Session = Depends(get_db), request: Request = None):
+    session_user = request.cookies.get("session_user")
+    current = db.query(Account).filter(Account.username == session_user).first()
+    if not current or current.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin can toggle status")
 
-    # Find target account
-    target = db.query(Account).filter(Account.id == target_id).first()
-    if not target:
+    account = db.query(Account).filter(Account.username == target_username).first()
+    if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    if target.role == "admin":
-        raise HTTPException(status_code=403, detail="Cannot modify admin accounts")
+    if account.role == "admin":
+        raise HTTPException(status_code=403, detail="Cannot change status of admin accounts")
 
-    # Suspend the account
-    target.status = "suspended"
+    account.status = "suspended" if account.status == "active" else "active"
     db.commit()
-    return {"message": f"{target.username} has been suspended"}
+
+    return {"message": f"Account status changed to {account.status}"}
+    
+@app.post("/api/users")
+def create_customer(data: RegisterData, db: Session = Depends(get_db), request: Request = None):
+    # Optional auth check
+    session_user = request.cookies.get("session_user") if request else None
+    if session_user:
+        current = db.query(Account).filter(Account.username == session_user).first()
+        if not current or current.role != "admin":
+            raise HTTPException(status_code=403, detail="Only admin can create customer accounts")
+
+    # Check if username/email already exist
+    if db.query(Account).filter(Account.username == data.username).first():
+        raise HTTPException(status_code=400, detail="Username already exists")
+    if db.query(Account).filter(Account.email == data.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Role must be customer
+    if data.role != "customer":
+        raise HTTPException(status_code=400, detail="Only 'customer' accounts can be created here")
+
+    hashed_pw = bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()
+
+    customer = Account(
+        username=data.username,
+        password=hashed_pw,
+        email=data.email,
+        full_name=data.fullName,
+        phone_number=data.phone,
+        address=data.address,
+        role="customer",
+        status="active"
+    )
+    db.add(customer)
+    db.commit()
+    db.refresh(customer)
+
+    return {"message": "Customer account created", "id": customer.id}
+
 
 #Prescription
-router = APIRouter(prefix="/api/prescriptions")
+router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
 
 @router.get("/", response_model=list[PrescriptionOut])
 def get_prescriptions(db: Session = Depends(get_db)):
@@ -271,6 +314,7 @@ def create_prescription(
     db: Session = Depends(get_db),
     session_user: Optional[str] = Cookie(default=None)
 ):
+    print("Session user:", session_user)
     if not session_user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -278,15 +322,21 @@ def create_prescription(
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
 
+    customer = db.query(Account).filter_by(id=data.customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
     new = Prescription(
         prescription_number=data.prescription_number,
         customer_id=data.customer_id,
-        customer_name=db.query(Account).filter_by(id=data.customer_id).first().full_name,
+        customer_name=customer.full_name,
         doctor_id=doctor.id,
         doctor_name=data.doctor_name,
         issued_date=data.issued_date or datetime.utcnow(),
-        status="pending",
+        notes=data.notes,
+        status=data.status or "pending"
     )
+
     db.add(new)
     db.commit()
     db.refresh(new)
@@ -309,6 +359,12 @@ def get_users(role: Optional[str] = None, db: Session = Depends(get_db)):
             "address": user.address,
             "role": user.role,
             "isActive": user.status == "active",
+            "createdAt": user.created_at
         }
         for user in users
     ]
+
+
+
+
+app.include_router(router)
