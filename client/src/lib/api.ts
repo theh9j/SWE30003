@@ -2,16 +2,59 @@ import { apiRequest } from "./queryClient";
 
 const ensureArray = (data: any) => (Array.isArray(data) ? data : data?.data ?? []);
 
+export async function fetchUsers() {
+  const res = await fetch("/api/accounts", {
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch users");
+  }
+
+  return res.json();
+}
+
+export async function toggleAccountState(username: string) {
+  const response = await fetch(`/api/accounts/${username}/state`, {
+    method: "PUT",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || "Failed to change account state");
+  }
+
+  return response.json();
+}
+
+export async function createPrescription(data: any) {
+  const res = await fetch("/api/prescriptions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include", // Ensures cookie is sent
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.detail || "Failed to create prescription");
+  }
+
+  return res.json();
+}
+
 export const api = {
   // Dashboard
   getDashboardStats: () => fetch("/api/dashboard/stats").then(res => res.json()),
 
   // Users
-  getUsers: (role?: string) => {
-    const params = role ? `?role=${role}` : "";
-    return fetch(`/api/users${params}`)
-      .then(res => res.json())
-      .then(ensureArray);
+  getUsers: async (role?: string) => {
+    const res = await fetch(`/api/users${role ? "?role=" + role : ""}`);
+    if (!res.ok) throw new Error("Failed to fetch users");
+    return res.json();
   },
   createUser: (userData: any) => apiRequest("POST", "/api/users", userData),
   getUser: (id: number) => fetch(`/api/users/${id}`).then(res => res.json()),
@@ -39,16 +82,20 @@ export const api = {
 
     return response.json();
   },
-  updateUser: async (id: number, userData: any) => {
+    
+  updateUser: async (id: number, data: any) => {
   const response = await fetch(`/api/users/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(userData),
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify(data),
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to update user");
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || "Failed to update user");
   }
 
   return response.json();

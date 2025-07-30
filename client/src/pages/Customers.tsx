@@ -9,6 +9,7 @@ import AddCustomerModal from "@/components/modals/AddCustomerModal";
 import TopBar from "@/components/layout/TopBar";
 import { useToast } from "@/hooks/use-toast";
 import EditCustomerModal from "../components/modals/EditCustomerModal";
+import { toggleAccountState } from "../lib/api";
 
 export default function Customers() {
   const [showAddCustomer, setShowAddCustomer] = useState(false);
@@ -24,21 +25,14 @@ export default function Customers() {
   });
 
   const suspendMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
-      api.updateUser(id, { isActive }),
-    onSuccess: (_, { isActive }) => {
-      toast({
-        title: "Status Updated",
-        description: isActive ? "Account unsuspended" : "Account suspended",
-      });
+    mutationFn: ({ username }: { username: string }) =>
+      toggleAccountState(username),
+    onSuccess: () => {
+      toast({ title: "Updated", description: "Account status updated." });
       refetch();
     },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update account status",
-        variant: "destructive",
-      });
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -127,12 +121,7 @@ export default function Customers() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() =>
-                            suspendMutation.mutate({
-                              id: customer.id,
-                              isActive: !customer.isActive,
-                            })
-                          }
+                          onClick={() => suspendMutation.mutate({ username: customer.username })}
                           title={customer.isActive ? "Suspend" : "Unsuspend"}
                         >
                           {customer.isActive ? (
