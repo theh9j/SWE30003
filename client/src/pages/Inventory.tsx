@@ -105,7 +105,6 @@ export default function Inventory() {
   if (isLoading) {
     return (
       <div>
-        <TopBar title="Inventory" subtitle="Manage your medicine stock and inventory" />
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -118,8 +117,6 @@ export default function Inventory() {
 
   return (
     <div>
-      <TopBar title="Inventory" subtitle="Manage your medicine stock and inventory" />
-
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

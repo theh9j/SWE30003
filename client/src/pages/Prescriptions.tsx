@@ -99,7 +99,6 @@ export default function Prescriptions() {
   if (isLoading) {
     return (
       <div>
-        <TopBar title="Prescriptions" subtitle="Manage prescription verification and dispensing" />
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -112,8 +111,6 @@ export default function Prescriptions() {
 
   return (
     <div>
-      <TopBar title="Prescriptions" subtitle="Manage prescription verification and dispensing" />
-      
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

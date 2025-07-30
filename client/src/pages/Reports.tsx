@@ -86,8 +86,6 @@ export default function Reports() {
 
   return (
     <div>
-      <TopBar title="Reports" subtitle="Generate comprehensive business reports and analytics" />
-      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {reportCards.map((report, index) => {
           const Icon = report.icon;

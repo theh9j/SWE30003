@@ -58,8 +58,6 @@ export default function Customers() {
 
   return (
     <div>
-      <TopBar title="Customers" subtitle="Manage customer profiles and information" />
-
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
