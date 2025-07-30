@@ -5,6 +5,8 @@ from sqlalchemy import Column, Integer, String, create_engine, DateTime, Foreign
 from sqlalchemy.orm import relationship
 from typing import Optional
 from datetime import datetime
+import random
+from datetime import timedelta
 from sqlalchemy.ext.declarative import declarative_base
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import sessionmaker, Session
@@ -56,8 +58,8 @@ class Prescription(Base):
     customer_id = Column(String)
     customer_name = Column(String)
 
-    pharmacist_id = Column(String)  # keep this
-    doctor_name = Column(String)    # ✅ use this instead of pharmacist_name
+    pharmacist_id = Column(String) 
+    doctor_name = Column(String) 
 
     prescription_number = Column(String, unique=True)
     issued_date = Column(Date)
@@ -202,10 +204,6 @@ def on_boot():
             ))
 
     db.commit()  # Commit users before using them
-
-    # === ✅ Add 10 sample prescriptions ===
-    import random
-    from datetime import timedelta
 
     customers = db.query(Account).filter(Account.role == "customer").all()
     pharmacists = db.query(Account).filter(Account.role == "pharmacist").all()
@@ -475,8 +473,5 @@ def get_users(role: Optional[str] = None, db: Session = Depends(get_db)):
         }
         for user in users
     ]
-
-
-
 
 app.include_router(router)
