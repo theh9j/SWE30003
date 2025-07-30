@@ -78,10 +78,10 @@ class RegisterData(BaseModel):
     role: str  # Will validate below
 
 class PrescriptionCreate(BaseModel):
-    customer_username: str
-    pharmacist_username: str
-    prescription_number: str
-    issued_date: date
+    customerId: str
+    pharmacistUsername: str
+    prescriptionNumber: str
+    issuedDate: date
     notes: str | None = None
 
 class PrescriptionUpdate(BaseModel):
@@ -402,8 +402,8 @@ def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(
         customer_name=customer.full_name,
         pharmacist_id=pharmacist.username,
         pharmacist_name=pharmacist.full_name,
-        prescription_number=prescription.prescription_number,
-        issued_date=prescription.issued_date,
+        prescription_number=prescription.pharmacistUsername,
+        issued_date=prescription.issuedDate,
         notes=prescription.notes,
     )
 
