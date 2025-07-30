@@ -191,7 +191,7 @@ export default function Prescriptions() {
                         <Button variant="ghost" size="sm">
                           <Eye className="h-4 w-4" />
                         </Button>
-                        {prescription.status === "pending" && (
+                        {prescription.status === "active" && (
                           <>
                             <Button 
                               variant="ghost" 

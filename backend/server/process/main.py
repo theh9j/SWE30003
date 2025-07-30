@@ -55,17 +55,18 @@ class Prescription(Base):
     id = Column(Integer, primary_key=True, index=True)
     customer_id = Column(String)
     customer_name = Column(String)
-    pharmacist_id = Column(String)
-    pharmacist_name = Column(String)
+
+    pharmacist_id = Column(String)  # keep this
+    doctor_name = Column(String)    # ✅ use this instead of pharmacist_name
+
     prescription_number = Column(String, unique=True)
     issued_date = Column(Date)
     notes = Column(String)
 
-    status = Column(String, default="pending")
+    status = Column(String, default="Active")
     verified_at = Column(DateTime, nullable=True)
     dispensed_at = Column(DateTime, nullable=True)
     doctor_id = Column(Integer, nullable=True)
-    doctor_name = Column(String, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
@@ -97,16 +98,16 @@ class PrescriptionUpdate(BaseModel):
 
 class PrescriptionOut(BaseModel):
     id: int
-    prescription_number: str
-    customer_id: str
-    customer_name: str
-    doctor_id: Optional[int] = None
-    doctor_name: Optional[str] = None
-    issued_date: date
+    prescriptionNumber: str
+    customerId: str
+    customerName: str
+    doctorId: Optional[int] = None
+    doctorName: Optional[str] = None
+    issuedDate: date
     notes: Optional[str]
     status: str
-    verified_at: Optional[datetime] = None
-    dispensed_at: Optional[datetime] = None
+    verifiedAt: Optional[datetime] = None
+    dispensedAt: Optional[datetime] = None
 
     model_config = {
         "from_attributes": True
@@ -140,51 +141,38 @@ def manual_logout():
 
 # === Admin Account Creation ===
 @app.on_event("startup")
-def create_admin_account():
+def on_boot():
     db = SessionLocal()
 
     def hash_password(raw):
         return bcrypt.hashpw(raw.encode(), bcrypt.gensalt()).decode()
 
-    # Create the admin account if it doesn't exist
+    # Create admin account
     if not db.query(Account).filter(Account.username == "admin").first():
-        admin = Account(
+        db.add(Account(
             username="admin",
             password=hash_password("test123"),
             email="wow@gmail.com",
             full_name="Test",
             role="admin",
             status="active",
-        )
-        db.add(admin)
+        ))
 
-    # Example customer accounts
+    # Seed customers
     customer_data = [
         ("alice", "alice1@gmail.com", "Alice Johnson"),
         ("bob", "bob2@gmail.com", "Bob Smith"),
         ("carol", "carol3@gmail.com", "Carol White"),
         ("david", "david4@gmail.com", "David Brown"),
         ("eve", "eve5@gmail.com", "Eve Black"),
-        ("frank","frank6@gmail.com", "Frank Green"),
+        ("frank", "frank6@gmail.com", "Frank Green"),
         ("grace", "grace7@gmail.com", "Grace Lee"),
     ]
+    addresses = ["123 Baker Street", "42 Wallaby Way"]
+    phones = ["0901234567", "0912345678", "0987654321"]
 
-    random_addresses = [
-        "123 Baker Street",
-        "42 Wallaby Way"
-    ]
-
-    random_phones = [
-        "0901234567",
-        "0912345678",
-        "0987654321"
-    ]
-
-    for i, (username, email, full_name) in enumerate(customer_data):
+    for username, email, full_name in customer_data:
         if not db.query(Account).filter(Account.username == username).first():
-            address = random_addresses.pop() if random_addresses else None
-            phone = random_phones.pop() if random_phones else None
-
             db.add(Account(
                 username=username,
                 password=hash_password("test123"),
@@ -192,17 +180,16 @@ def create_admin_account():
                 full_name=full_name,
                 role="customer",
                 status="active",
-                address=address,
-                phone_number=phone
+                address=addresses.pop() if addresses else None,
+                phone_number=phones.pop() if phones else None
             ))
 
-    # Example pharmacist accounts
+    # Seed pharmacists
     pharmacist_data = [
         ("pharma1", "pharma1@gmail.com", "Dr. John Med"),
         ("pharma2", "pharma2@gmail.com", "Dr. Jane Cure"),
         ("pharma3", "pharma3@gmail.com", "Dr. Amy Dose"),
     ]
-
     for username, email, full_name in pharmacist_data:
         if not db.query(Account).filter(Account.username == username).first():
             db.add(Account(
@@ -213,6 +200,36 @@ def create_admin_account():
                 role="pharmacist",
                 status="active"
             ))
+
+    db.commit()  # Commit users before using them
+
+    # === ✅ Add 10 sample prescriptions ===
+    import random
+    from datetime import timedelta
+
+    customers = db.query(Account).filter(Account.role == "customer").all()
+    pharmacists = db.query(Account).filter(Account.role == "pharmacist").all()
+
+    for i in range(5):
+        customer = random.choice(customers)
+        pharmacist = random.choice(pharmacists)
+        prescription_number = f"RX-{random.randint(100000, 999999)}"
+        issued_date = date.today() - timedelta(days=random.randint(0, 9))
+
+        exists = db.query(Prescription).filter(Prescription.prescription_number == prescription_number).first()
+        if exists:
+            continue  # skip duplicates
+
+        db.add(Prescription(
+            customer_id=customer.username,
+            customer_name=customer.full_name,
+            pharmacist_id=pharmacist.username,
+            doctor_name=pharmacist.full_name,
+            prescription_number=prescription_number,
+            issued_date=issued_date,
+            notes="Sample prescription",
+            status="active"
+        ))
 
     db.commit()
     db.close()
@@ -391,7 +408,24 @@ router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
 @router.get("", response_model=list[PrescriptionOut])
 @router.get("/", response_model=list[PrescriptionOut])
 def get_prescriptions(db: Session = Depends(get_db)):
-    return db.query(Prescription).all()
+    prescriptions = db.query(Prescription).all()
+
+    return [
+        {
+            "id": p.id,
+            "prescriptionNumber": p.prescription_number,
+            "customerId": p.customer_id,
+            "customerName": p.customer_name,
+            "doctorId": p.doctor_id,
+            "doctorName": p.doctor_name,
+            "issuedDate": p.issued_date,
+            "notes": p.notes,
+            "status": p.status,
+            "verifiedAt": p.verified_at,
+            "dispensedAt": p.dispensed_at,
+        }
+        for p in prescriptions
+    ]
 
 @app.post("/api/prescriptions")
 def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(get_db)):
@@ -408,11 +442,11 @@ def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(
         customer_id=customer.username,
         customer_name=customer.full_name,
         pharmacist_id=pharmacist.username,
-        pharmacist_name=pharmacist.full_name,
+        doctor_name=pharmacist.full_name, 
         prescription_number=prescription.prescriptionNumber,
         issued_date=prescription.issuedDate,
         notes=prescription.notes,
-        status="pending"
+        status="active"
     )
 
     db.add(new_prescription)
