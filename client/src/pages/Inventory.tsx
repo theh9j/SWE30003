@@ -131,7 +131,7 @@ export default function Inventory() {
                   className="pl-10 w-full sm:w-64"
                 />
               </div>
-              {user?.role === "pharmacist" && (
+              {(user?.role === "pharmacist" || user?.role === "admin") && (
                 <Button onClick={() => setShowAddMedicine(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Medicine

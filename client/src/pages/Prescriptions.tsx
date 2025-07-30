@@ -2,12 +2,14 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AddPrescriptionModal from "@/components/modals/AddPrescriptionModal";
+import TopBar from "@/components/layout/TopBar";
 
 export default function Prescriptions() {
   const [showAddPrescription, setShowAddPrescription] = useState(false);
@@ -42,20 +44,41 @@ export default function Prescriptions() {
     },
   });
 
-  const getCustomerName = (username: string) => {
-    const user = customers?.find((u: any) => u.username === username);
-    return user?.fullName || "Unknown";
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "status-badge-pending";
+      case "verified":
+        return "status-badge-verified";
+      case "dispensed":
+        return "status-badge-dispensed";
+      case "rejected":
+        return "status-badge-rejected";
+      default:
+        return "status-badge-pending";
+    }
   };
 
-  const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString();
+  const getCustomerName = (customerUsername: string) => {
+    if (!customers) return "Unknown";
+    const customer = customers.find((c: any) => c.username === customerUsername);
+    return customer?.fullName || "Unknown";
+  };
 
-  const filteredPrescriptions = prescriptions?.filter((p: any) => {
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const filteredPrescriptions = prescriptions?.filter((prescription: any) => {
+    const number = prescription.prescriptionNumber?.toLowerCase() || "";
+    const doctor = prescription.doctorName?.toLowerCase() || "";
+    const customer = getCustomerName(prescription.customerId)?.toLowerCase() || "";
     const query = searchTerm.toLowerCase();
+
     return (
-      p.prescriptionNumber?.toLowerCase().includes(query) ||
-      getCustomerName(p.customer_id)?.toLowerCase().includes(query) ||
-      p.pharmacist_name?.toLowerCase().includes(query)
+      number.includes(query) ||
+      doctor.includes(query) ||
+      customer.includes(query)
     );
   }) || [];
 
@@ -65,6 +88,19 @@ export default function Prescriptions() {
       data: { status: "rejected" }
     });
   };
+
+  if (isLoading) {
+    return (
+      <div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-500">Loading prescriptions...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -101,7 +137,7 @@ export default function Prescriptions() {
                     Customer
                   </th>
                   <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pharmacist
+                    Doctor
                   </th>
                   <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Issued Date
@@ -115,38 +151,36 @@ export default function Prescriptions() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredPrescriptions.map((p: any) => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="py-4 text-sm font-medium text-gray-900">
-                      {p.prescriptionNumber}
+                {filteredPrescriptions.map((prescription: any) => (
+                  <tr key={prescription.id} className="hover:bg-gray-50">
+                    <td className="py-4">
+                      <div className="text-sm font-medium text-gray-900">
+                        {prescription.prescriptionNumber}
+                      </div>
                     </td>
                     <td className="py-4 text-sm text-gray-900">
-                      {getCustomerName(p.customer_id)}
+                      {getCustomerName(prescription.customerId)}
                     </td>
                     <td className="py-4 text-sm text-gray-900">
-                      {p.pharmacist_name}
+                      {prescription.doctorName}
                     </td>
                     <td className="py-4 text-sm text-gray-900">
-                      {formatDate(p.issued_date)}
+                      {formatDate(prescription.issuedDate)}
                     </td>
                     <td className="py-4">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        p.status === "active"
-                          ? "bg-green-100 text-green-800"
-                          : p.status === "rejected"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}>
-                        {p.status === "rejected" ? "Expired" : p.status.charAt(0).toUpperCase() + p.status.slice(1)}
-                      </span>
+                      <Badge className={getStatusBadgeClass(prescription.status)}>
+                        {prescription.status === "rejected"
+                          ? "Expired"
+                          : prescription.status.charAt(0).toUpperCase() + prescription.status.slice(1)}
+                      </Badge>
                     </td>
                     <td className="py-4">
                       <div className="flex space-x-2">
-                        {p.status === "active" && (
+                        {prescription.status === "active" && (
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleReject(p.id)}
+                            onClick={() => handleReject(prescription.id)}
                             disabled={updatePrescriptionMutation.isPending}
                             className="text-red-600 hover:text-red-700"
                           >
@@ -162,8 +196,8 @@ export default function Prescriptions() {
           </div>
 
           {filteredPrescriptions.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No prescriptions found
+            <div className="text-center py-8">
+              <p className="text-gray-500">No prescriptions found</p>
             </div>
           )}
         </CardContent>
