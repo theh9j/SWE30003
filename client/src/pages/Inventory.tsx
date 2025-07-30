@@ -9,14 +9,15 @@ import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AddMedicineModal from "@/components/modals/AddMedicineModal";
-import TopBar from "@/components/layout/TopBar";
+import EditMedicineModal from "@/components/modals/EditMedicineModal";
 
 export default function Inventory() {
   const [showAddMedicine, setShowAddMedicine] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedMedicine, setSelectedMedicine] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
-  // 👤 Fetch current user to check role
   const { data: user } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: async () => {
@@ -104,12 +105,10 @@ export default function Inventory() {
 
   if (isLoading) {
     return (
-      <div>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-gray-500">Loading inventory...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-500">Loading inventory...</p>
         </div>
       </div>
     );
@@ -140,35 +139,20 @@ export default function Inventory() {
             </div>
           </div>
         </CardHeader>
+
         <CardContent>
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Medicine
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Stock
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Batch
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Expiry
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Price
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Medicine</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Batch</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -177,9 +161,7 @@ export default function Inventory() {
                     <td className="py-4">
                       <div className="text-sm font-medium text-gray-900">{medicine.name}</div>
                       <div className="text-sm text-gray-500">SKU: {medicine.sku}</div>
-                      {medicine.dosage && (
-                        <div className="text-xs text-gray-400">{medicine.dosage}</div>
-                      )}
+                      {medicine.dosage && <div className="text-xs text-gray-400">{medicine.dosage}</div>}
                     </td>
                     <td className="py-4 text-sm text-gray-900">{medicine.categoryName}</td>
                     <td className="py-4">
@@ -194,7 +176,14 @@ export default function Inventory() {
                     </td>
                     <td className="py-4">
                       <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedMedicine(medicine);
+                            setShowEditModal(true);
+                          }}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
@@ -221,9 +210,16 @@ export default function Inventory() {
         </CardContent>
       </Card>
 
-      <AddMedicineModal
-        open={showAddMedicine}
-        onOpenChange={setShowAddMedicine}
+      {/* Modals */}
+      <AddMedicineModal open={showAddMedicine} onOpenChange={setShowAddMedicine} />
+      <EditMedicineModal
+        open={showEditModal}
+        onOpenChange={setShowEditModal}
+        medicine={selectedMedicine}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/medicines"] });
+          setShowEditModal(false);
+        }}
       />
     </div>
   );
