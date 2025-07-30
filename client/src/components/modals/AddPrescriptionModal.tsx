@@ -51,7 +51,7 @@ export default function AddPrescriptionModal({ open, onOpenChange }: AddPrescrip
       customerId: undefined,
       prescriptionNumber: "",
       pharmacistUsername: "",
-      issuedDate: "",
+      issuedDate: new Date().toISOString().slice(0, 10), // Default today
       notes: "",
     },
   });
@@ -103,7 +103,6 @@ export default function AddPrescriptionModal({ open, onOpenChange }: AddPrescrip
     onOpenChange(false);
   };
 
-  // Generate a random prescription number
   const generatePrescriptionNumber = () => {
     const number = `RX-${Date.now().toString().slice(-6)}`;
     form.setValue("prescriptionNumber", number);
@@ -152,7 +151,6 @@ export default function AddPrescriptionModal({ open, onOpenChange }: AddPrescrip
                 type="button"
                 variant="outline"
                 onClick={generatePrescriptionNumber}
-                className="whitespace-nowrap"
               >
                 Generate
               </Button>
@@ -183,6 +181,18 @@ export default function AddPrescriptionModal({ open, onOpenChange }: AddPrescrip
               <p className="text-sm text-red-600">
                 {form.formState.errors.pharmacistUsername.message}
               </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="issuedDate">Issued Date *</Label>
+            <Input
+              type="date"
+              id="issuedDate"
+              {...form.register("issuedDate")}
+            />
+            {form.formState.errors.issuedDate && (
+              <p className="text-sm text-red-600">{form.formState.errors.issuedDate.message}</p>
             )}
           </div>
 
