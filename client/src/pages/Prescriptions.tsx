@@ -59,9 +59,9 @@ export default function Prescriptions() {
     }
   };
 
-  const getCustomerName = (customerId: number) => {
+  const getCustomerName = (customerUsername: string) => {
     if (!customers) return "Unknown";
-    const customer = customers.find((c: any) => c.id === customerId);
+    const customer = customers.find((c: any) => c.username === customerUsername);
     return customer?.fullName || "Unknown";
   };
 
@@ -69,11 +69,18 @@ export default function Prescriptions() {
     return new Date(dateString).toLocaleDateString();
   };
 
-  const filteredPrescriptions = prescriptions?.filter((prescription: any) =>
-    prescription.prescriptionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    prescription.doctorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    getCustomerName(prescription.customerId).toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredPrescriptions = prescriptions?.filter((prescription: any) => {
+    const number = prescription.prescriptionNumber?.toLowerCase() || "";
+    const doctor = prescription.doctorName?.toLowerCase() || "";
+    const customer = getCustomerName(prescription.customerId)?.toLowerCase() || "";
+    const query = searchTerm.toLowerCase();
+
+    return (
+      number.includes(query) ||
+      doctor.includes(query) ||
+      customer.includes(query)
+    );
+  }) || [];
 
   const handleVerify = (id: number) => {
     updatePrescriptionMutation.mutate({

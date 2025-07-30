@@ -53,13 +53,19 @@ class Prescription(Base):
     __tablename__ = "prescriptions"
 
     id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer)
+    customer_id = Column(String)
     customer_name = Column(String)
-    pharmacist_id = Column(Integer)
+    pharmacist_id = Column(String)
     pharmacist_name = Column(String)
     prescription_number = Column(String, unique=True)
     issued_date = Column(Date)
     notes = Column(String)
+
+    status = Column(String, default="pending")
+    verified_at = Column(DateTime, nullable=True)
+    dispensed_at = Column(DateTime, nullable=True)
+    doctor_id = Column(Integer, nullable=True)
+    doctor_name = Column(String, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
@@ -92,15 +98,15 @@ class PrescriptionUpdate(BaseModel):
 class PrescriptionOut(BaseModel):
     id: int
     prescription_number: str
-    customer_id: int
+    customer_id: str
     customer_name: str
-    doctor_id: int
-    doctor_name: str
-    issued_date: datetime
-    notes: Optional[str]  # ✅ NEW
+    doctor_id: Optional[int] = None
+    doctor_name: Optional[str] = None
+    issued_date: date
+    notes: Optional[str]
     status: str
-    verified_at: Optional[datetime]
-    dispensed_at: Optional[datetime]
+    verified_at: Optional[datetime] = None
+    dispensed_at: Optional[datetime] = None
 
     model_config = {
         "from_attributes": True
@@ -382,13 +388,14 @@ def update_customer(user_id: int, data: UpdateCustomerData, db: Session = Depend
 #Prescription
 router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
 
+@router.get("", response_model=list[PrescriptionOut])
 @router.get("/", response_model=list[PrescriptionOut])
 def get_prescriptions(db: Session = Depends(get_db)):
     return db.query(Prescription).all()
 
 @app.post("/api/prescriptions")
 def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(get_db)):
-    # Interpret customerId as username
+    # customerId is a username string now
     customer = db.query(Account).filter(Account.username == prescription.customerId).first()
     pharmacist = db.query(Account).filter(Account.username == prescription.pharmacistUsername).first()
 
@@ -402,9 +409,10 @@ def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(
         customer_name=customer.full_name,
         pharmacist_id=pharmacist.username,
         pharmacist_name=pharmacist.full_name,
-        prescription_number=prescription.pharmacistUsername,
+        prescription_number=prescription.prescriptionNumber,
         issued_date=prescription.issuedDate,
         notes=prescription.notes,
+        status="pending"
     )
 
     db.add(new_prescription)
