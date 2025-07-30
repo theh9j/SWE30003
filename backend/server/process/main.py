@@ -385,13 +385,6 @@ def is_admin(user: Account) -> bool:
 def is_pharmacist_or_admin(user: Account) -> bool:
     return user.role in ["pharmacist", "admin"]
 
-# MANUAL LOGOUT (TEMP)
-@app.get("/manual-logout")
-def manual_logout():
-    response = JSONResponse(content={"message": "Manually logged out"})
-    response.delete_cookie("session_user")
-    return response
-
 # === Admin Account Creation ===
 @app.on_event("startup")
 def on_boot():
