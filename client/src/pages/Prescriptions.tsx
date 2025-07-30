@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Eye, Check, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -82,24 +82,10 @@ export default function Prescriptions() {
     );
   }) || [];
 
-  const handleVerify = (id: number) => {
-    updatePrescriptionMutation.mutate({
-      id,
-      data: { status: "verified", verifiedAt: new Date().toISOString() }
-    });
-  };
-
   const handleReject = (id: number) => {
     updatePrescriptionMutation.mutate({
       id,
       data: { status: "rejected" }
-    });
-  };
-
-  const handleDispense = (id: number) => {
-    updatePrescriptionMutation.mutate({
-      id,
-      data: { status: "dispensed", dispensedAt: new Date().toISOString() }
     });
   };
 
@@ -183,45 +169,22 @@ export default function Prescriptions() {
                     </td>
                     <td className="py-4">
                       <Badge className={getStatusBadgeClass(prescription.status)}>
-                        {prescription.status.charAt(0).toUpperCase() + prescription.status.slice(1)}
+                        {prescription.status === "rejected"
+                          ? "Expired"
+                          : prescription.status.charAt(0).toUpperCase() + prescription.status.slice(1)}
                       </Badge>
                     </td>
                     <td className="py-4">
                       <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
                         {prescription.status === "active" && (
-                          <>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleVerify(prescription.id)}
-                              disabled={updatePrescriptionMutation.isPending}
-                              className="text-green-600 hover:text-green-700"
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleReject(prescription.id)}
-                              disabled={updatePrescriptionMutation.isPending}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                        {prescription.status === "verified" && (
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleDispense(prescription.id)}
+                            onClick={() => handleReject(prescription.id)}
                             disabled={updatePrescriptionMutation.isPending}
-                            className="text-blue-600 hover:text-blue-700"
+                            className="text-red-600 hover:text-red-700"
                           >
-                            Dispense
+                            <X className="h-4 w-4" />
                           </Button>
                         )}
                       </div>
