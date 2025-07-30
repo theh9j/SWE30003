@@ -163,6 +163,10 @@ export default function ProcessSaleModal({ open, onOpenChange }: ProcessSaleModa
       taxAmount: taxAmount.toString(),
       totalAmount: totalAmount.toString(),
       status: "completed",
+      items: saleItems.map(item => ({
+        medicineId: item.medicineId,
+        quantity: item.quantity
+      }))
     };
 
     createSaleMutation.mutate(saleData);
@@ -319,7 +323,7 @@ export default function ProcessSaleModal({ open, onOpenChange }: ProcessSaleModa
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="paymentMethod">Payment Method *</Label>
+            <Label>Payment Method *</Label>
             <Select 
               onValueChange={(value) => form.setValue("paymentMethod", value)}
               value={form.watch("paymentMethod")}

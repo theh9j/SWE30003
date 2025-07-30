@@ -48,16 +48,22 @@ export async function createPrescription(data: any) {
 
 export const api = {
   // Dashboard
-  getDashboardStats: () => fetch("/api/dashboard/stats").then(res => res.json()),
+  getDashboardStats: () => fetch("/api/dashboard/stats", {
+    credentials: "include"
+  }).then(res => res.json()),
 
   // Users
   getUsers: async (role?: string) => {
-    const res = await fetch(`/api/users${role ? "?role=" + role : ""}`);
+    const res = await fetch(`/api/users${role ? "?role=" + role : ""}`, {
+      credentials: "include"
+    });
     if (!res.ok) throw new Error("Failed to fetch users");
     return res.json();
   },
   createUser: (userData: any) => apiRequest("POST", "/api/users", userData),
-  getUser: (id: number) => fetch(`/api/users/${id}`).then(res => res.json()),
+  getUser: (id: number) => fetch(`/api/users/${id}`, {
+    credentials: "include"
+  }).then(res => res.json()),
   getMe: async () => {
     const res = await fetch(`/api/auth/me`, {
       credentials: "include",
@@ -72,6 +78,7 @@ export const api = {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       body: JSON.stringify({ isActive }),
     });
 
@@ -84,37 +91,43 @@ export const api = {
   },
     
   updateUser: async (id: number, data: any) => {
-  const response = await fetch(`/api/users/${id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-    body: JSON.stringify(data),
-  });
+    const response = await fetch(`/api/users/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || "Failed to update user");
-  }
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Failed to update user");
+    }
 
-  return response.json();
-},
+    return response.json();
+  },
 
   // Categories
   getCategories: () =>
-    fetch("/api/categories")
+    fetch("/api/categories", {
+      credentials: "include"
+    })
       .then(res => res.json())
       .then(ensureArray),
 
   // Medicines
   getMedicines: () =>
-    fetch("/api/medicines")
+    fetch("/api/medicines", {
+      credentials: "include"
+    })
       .then(res => res.json())
       .then(ensureArray),
   createMedicine: (medicineData: any) =>
     apiRequest("POST", "/api/medicines", medicineData),
-  getMedicine: (id: number) => fetch(`/api/medicines/${id}`).then(res => res.json()),
+  getMedicine: (id: number) => fetch(`/api/medicines/${id}`, {
+    credentials: "include"
+  }).then(res => res.json()),
   updateMedicine: (id: number, medicineData: any) =>
     apiRequest("PUT", `/api/medicines/${id}`, medicineData),
   deleteMedicine: (id: number) =>
@@ -122,11 +135,15 @@ export const api = {
 
   // Inventory
   getInventory: () =>
-    fetch("/api/inventory")
+    fetch("/api/inventory", {
+      credentials: "include"
+    })
       .then(res => res.json())
       .then(ensureArray),
   getLowStockItems: () =>
-    fetch("/api/inventory/low-stock")
+    fetch("/api/inventory/low-stock", {
+      credentials: "include"
+    })
       .then(res => res.json())
       .then(ensureArray),
   createInventory: (inventoryData: any) =>
@@ -134,30 +151,84 @@ export const api = {
 
   // Prescriptions
   getPrescriptions: () =>
-    fetch("/api/prescriptions")
+    fetch("/api/prescriptions", {
+      credentials: "include"
+    })
       .then(res => res.json())
       .then(ensureArray),
   createPrescription: (prescriptionData: any) =>
     apiRequest("POST", "/api/prescriptions", prescriptionData),
-  getPrescription: (id: number) => fetch(`/api/prescriptions/${id}`).then(res => res.json()),
+  getPrescription: (id: number) => fetch(`/api/prescriptions/${id}`, {
+    credentials: "include"
+  }).then(res => res.json()),
   updatePrescription: (id: number, prescriptionData: any) =>
     apiRequest("PUT", `/api/prescriptions/${id}`, prescriptionData),
 
-  // Sales
-  getSales: () =>
-    fetch("/api/sales")
-      .then(res => res.json())
-      .then(ensureArray),
-  createSale: (saleData: any) => apiRequest("POST", "/api/sales", saleData),
-  getSale: (id: number) => fetch(`/api/sales/${id}`).then(res => res.json()),
+  // Sales - THESE WERE MISSING!
+  getSales: async () => {
+    const res = await fetch("/api/sales", {
+      credentials: "include"
+    });
+    if (!res.ok) throw new Error("Failed to fetch sales");
+    const data = await res.json();
+    return ensureArray(data);
+  },
+
+  createSale: async (saleData: any) => {
+    const response = await fetch("/api/sales", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(saleData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Failed to create sale");
+    }
+
+    return response.json();
+  },
+
+  getSale: async (id: number) => {
+    const res = await fetch(`/api/sales/${id}`, {
+      credentials: "include"
+    });
+    if (!res.ok) throw new Error("Failed to fetch sale");
+    return res.json();
+  },
+
+  updateSale: async (id: number, status: string) => {
+    const response = await fetch(`/api/sales/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ status }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Failed to update sale");
+    }
+
+    return response.json();
+  },
 
   // Discounts
   getDiscounts: () =>
-    fetch("/api/discounts")
+    fetch("/api/discounts", {
+      credentials: "include"
+    })
       .then(res => res.json())
       .then(ensureArray),
   getActiveDiscounts: () =>
-    fetch("/api/discounts/active")
+    fetch("/api/discounts/active", {
+      credentials: "include"
+    })
       .then(res => res.json())
       .then(ensureArray),
 };

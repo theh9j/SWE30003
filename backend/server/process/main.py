@@ -12,6 +12,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi import Cookie
 from datetime import date
+from sqlalchemy import Text, DECIMAL
+from typing import List
 import bcrypt
 import os
 
@@ -114,6 +116,42 @@ class Prescription(Base):
     verified_at = Column(DateTime, nullable=True)
     dispensed_at = Column(DateTime, nullable=True)
     doctor_id = Column(Integer, nullable=True)
+
+class Sale(Base):
+    __tablename__ = "sales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sale_number = Column(String, unique=True, nullable=False)
+    customer_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)  # Walk-in customers have null
+    pharmacist_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    subtotal = Column(DECIMAL(10, 2), nullable=False)
+    discount_amount = Column(DECIMAL(10, 2), default=0.00)
+    tax_amount = Column(DECIMAL(10, 2), default=0.00)
+    total_amount = Column(DECIMAL(10, 2), nullable=False)
+    payment_method = Column(String, nullable=False)  # cash, card, insurance
+    status = Column(String, default="completed")  # completed, pending, refunded
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    customer = relationship("Account", foreign_keys=[customer_id])
+    pharmacist = relationship("Account", foreign_keys=[pharmacist_id])
+    sale_items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
+
+class SaleItem(Base):
+    __tablename__ = "sale_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
+    medicine_id = Column(Integer, ForeignKey("medicines.id"), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(DECIMAL(10, 2), nullable=False)
+    total_price = Column(DECIMAL(10, 2), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    sale = relationship("Sale", back_populates="sale_items")
+    medicine = relationship("Medicine")
 
 Base.metadata.create_all(bind=engine)
 
@@ -252,6 +290,56 @@ class InventoryOut(BaseModel):
             created_at=obj.created_at,
             updated_at=obj.updated_at
         )
+    
+class SaleItemCreate(BaseModel):
+    medicineId: int
+    quantity: int
+
+class SaleItemOut(BaseModel):
+    id: int
+    medicineId: int
+    medicineName: str
+    quantity: int
+    unitPrice: float
+    totalPrice: float
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class SaleCreate(BaseModel):
+    customerId: Optional[int] = None  # None for walk-in customers
+    pharmacistId: int
+    saleNumber: str
+    subtotal: str
+    discountAmount: str = "0"
+    taxAmount: str
+    totalAmount: str
+    paymentMethod: str
+    status: str = "completed"
+    notes: Optional[str] = None
+    items: List[SaleItemCreate] = []
+
+class SaleOut(BaseModel):
+    id: int
+    saleNumber: str
+    customerId: Optional[int]
+    customerName: Optional[str]
+    pharmacistId: int
+    pharmacistName: str
+    subtotal: float
+    discountAmount: float
+    taxAmount: float
+    totalAmount: float
+    paymentMethod: str
+    status: str
+    notes: Optional[str]
+    createdAt: datetime
+    items: List[SaleItemOut] = []
+
+    model_config = {
+        "from_attributes": True
+    }
 
 # === DB Dependency ===
 def get_db():
@@ -938,6 +1026,218 @@ def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(
 
     return {"message": "Prescription created successfully"}
 
+@app.get("/api/sales")
+def get_sales(db: Session = Depends(get_db)):
+    sales = db.query(Sale).order_by(Sale.created_at.desc()).all()
+    
+    result = []
+    for sale in sales:
+        # Get customer name
+        customer_name = None
+        if sale.customer_id:
+            customer = db.query(Account).filter(Account.id == sale.customer_id).first()
+            customer_name = customer.full_name if customer else "Unknown"
+        else:
+            customer_name = "Walk-in Customer"
+        
+        # Get pharmacist name
+        pharmacist = db.query(Account).filter(Account.id == sale.pharmacist_id).first()
+        pharmacist_name = pharmacist.full_name if pharmacist else "Unknown"
+        
+        # Get sale items
+        sale_items = []
+        for item in sale.sale_items:
+            medicine = db.query(Medicine).filter(Medicine.id == item.medicine_id).first()
+            sale_items.append({
+                "id": item.id,
+                "medicineId": item.medicine_id,
+                "medicineName": medicine.name if medicine else "Unknown",
+                "quantity": item.quantity,
+                "unitPrice": float(item.unit_price),
+                "totalPrice": float(item.total_price)
+            })
+        
+        result.append({
+            "id": sale.id,
+            "saleNumber": sale.sale_number,
+            "customerId": sale.customer_id,
+            "customerName": customer_name,
+            "pharmacistId": sale.pharmacist_id,
+            "pharmacistName": pharmacist_name,
+            "subtotal": float(sale.subtotal),
+            "discountAmount": float(sale.discount_amount),
+            "taxAmount": float(sale.tax_amount),
+            "totalAmount": float(sale.total_amount),
+            "paymentMethod": sale.payment_method,
+            "status": sale.status,
+            "notes": sale.notes,
+            "createdAt": sale.created_at,
+            "items": sale_items
+        })
+    
+    return result
+
+@app.get("/api/sales/{sale_id}")
+def get_sale(sale_id: int, db: Session = Depends(get_db)):
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    
+    # Get customer name
+    customer_name = None
+    if sale.customer_id:
+        customer = db.query(Account).filter(Account.id == sale.customer_id).first()
+        customer_name = customer.full_name if customer else "Unknown"
+    else:
+        customer_name = "Walk-in Customer"
+    
+    # Get pharmacist name
+    pharmacist = db.query(Account).filter(Account.id == sale.pharmacist_id).first()
+    pharmacist_name = pharmacist.full_name if pharmacist else "Unknown"
+    
+    # Get sale items
+    sale_items = []
+    for item in sale.sale_items:
+        medicine = db.query(Medicine).filter(Medicine.id == item.medicine_id).first()
+        sale_items.append({
+            "id": item.id,
+            "medicineId": item.medicine_id,
+            "medicineName": medicine.name if medicine else "Unknown",
+            "quantity": item.quantity,
+            "unitPrice": float(item.unit_price),
+            "totalPrice": float(item.total_price)
+        })
+    
+    return {
+        "id": sale.id,
+        "saleNumber": sale.sale_number,
+        "customerId": sale.customer_id,
+        "customerName": customer_name,
+        "pharmacistId": sale.pharmacist_id,
+        "pharmacistName": pharmacist_name,
+        "subtotal": float(sale.subtotal),
+        "discountAmount": float(sale.discount_amount),
+        "taxAmount": float(sale.tax_amount),
+        "totalAmount": float(sale.total_amount),
+        "paymentMethod": sale.payment_method,
+        "status": sale.status,
+        "notes": sale.notes,
+        "createdAt": sale.created_at,
+        "items": sale_items
+    }
+
+@app.post("/api/sales")
+def create_sale(sale_data: SaleCreate, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not is_pharmacist_or_admin(current_user):
+        raise HTTPException(status_code=403, detail="Only pharmacists and admins can create sales")
+
+    # Validate customer exists if provided
+    if sale_data.customerId:
+        customer = db.query(Account).filter(
+            Account.id == sale_data.customerId, 
+            Account.role == "customer"
+        ).first()
+        if not customer:
+            raise HTTPException(status_code=400, detail="Customer not found")
+
+    # Validate pharmacist exists
+    pharmacist = db.query(Account).filter(
+        Account.id == sale_data.pharmacistId,
+        Account.role == "pharmacist"
+    ).first()
+    if not pharmacist:
+        raise HTTPException(status_code=400, detail="Pharmacist not found")
+
+    # Check if sale number already exists
+    existing_sale = db.query(Sale).filter(Sale.sale_number == sale_data.saleNumber).first()
+    if existing_sale:
+        raise HTTPException(status_code=400, detail="Sale number already exists")
+
+    # Validate all medicines exist and have sufficient stock
+    for item in sale_data.items:
+        medicine = db.query(Medicine).filter(Medicine.id == item.medicineId).first()
+        if not medicine:
+            raise HTTPException(status_code=400, detail=f"Medicine with ID {item.medicineId} not found")
+        
+        # Check inventory
+        inventory = db.query(Inventory).filter(Inventory.medicine_id == item.medicineId).first()
+        if not inventory or inventory.quantity < item.quantity:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient stock for {medicine.name}. Available: {inventory.quantity if inventory else 0}, Required: {item.quantity}"
+            )
+
+    # Create the sale
+    new_sale = Sale(
+        sale_number=sale_data.saleNumber,
+        customer_id=sale_data.customerId,
+        pharmacist_id=sale_data.pharmacistId,
+        subtotal=float(sale_data.subtotal),
+        discount_amount=float(sale_data.discountAmount),
+        tax_amount=float(sale_data.taxAmount),
+        total_amount=float(sale_data.totalAmount),
+        payment_method=sale_data.paymentMethod,
+        status=sale_data.status,
+        notes=sale_data.notes
+    )
+    
+    db.add(new_sale)
+    db.flush()  # To get the sale ID
+
+    # Create sale items and update inventory
+    for item in sale_data.items:
+        medicine = db.query(Medicine).filter(Medicine.id == item.medicineId).first()
+        unit_price = float(medicine.price)
+        total_price = unit_price * item.quantity
+
+        sale_item = SaleItem(
+            sale_id=new_sale.id,
+            medicine_id=item.medicineId,
+            quantity=item.quantity,
+            unit_price=unit_price,
+            total_price=total_price
+        )
+        db.add(sale_item)
+
+        # Update inventory
+        inventory = db.query(Inventory).filter(Inventory.medicine_id == item.medicineId).first()
+        inventory.quantity -= item.quantity
+        inventory.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(new_sale)
+
+    return {"message": "Sale created successfully", "saleId": new_sale.id}
+
+@app.put("/api/sales/{sale_id}")
+def update_sale(sale_id: int, status: str, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not is_pharmacist_or_admin(current_user):
+        raise HTTPException(status_code=403, detail="Only pharmacists and admins can update sales")
+
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+
+    # Only allow certain status updates
+    allowed_statuses = ["completed", "pending", "refunded"]
+    if status not in allowed_statuses:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    # If refunding, restore inventory
+    if status == "refunded" and sale.status != "refunded":
+        for item in sale.sale_items:
+            inventory = db.query(Inventory).filter(Inventory.medicine_id == item.medicine_id).first()
+            if inventory:
+                inventory.quantity += item.quantity
+                inventory.updated_at = datetime.utcnow()
+
+    sale.status = status
+    db.commit()
+
+    return {"message": "Sale updated successfully"}
+
 # === Dashboard Stats ===
 @app.get("/api/dashboard/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):
@@ -946,11 +1246,25 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     total_prescriptions = db.query(Prescription).count()
     low_stock_count = db.query(Inventory).filter(Inventory.quantity <= Inventory.min_stock_level).count()
     
+    # Add sales stats
+    total_sales = db.query(Sale).count()
+    today_sales = db.query(Sale).filter(
+        Sale.created_at >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    ).count()
+    
+    # Calculate total revenue
+    total_revenue = db.query(Sale).filter(Sale.status == "completed").with_entities(
+        db.func.sum(Sale.total_amount)
+    ).scalar() or 0
+    
     return {
         "totalMedicines": total_medicines,
         "totalCustomers": total_customers,
         "totalPrescriptions": total_prescriptions,
-        "lowStockItems": low_stock_count
+        "lowStockItems": low_stock_count,
+        "totalSales": total_sales,
+        "todaySales": today_sales,
+        "totalRevenue": float(total_revenue)
     }
 
 app.include_router(prescription_router)
