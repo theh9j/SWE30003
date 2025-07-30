@@ -88,12 +88,13 @@ export default function AddPrescriptionModal({ open, onOpenChange }: AddPrescrip
     }
 
     const payload = {
-      customer_username: selectedCustomer.username,
-      pharmacist_username: data.pharmacistUsername,
-      prescription_number: data.prescriptionNumber,
-      issued_date: data.issuedDate,
+      customerId: selectedCustomer.username,
+      pharmacistUsername: data.pharmacistUsername,
+      prescriptionNumber: data.prescriptionNumber,
+      issuedDate: data.issuedDate,
       notes: data.notes,
     };
+
 
     createPrescriptionMutation.mutate(payload);
   };
