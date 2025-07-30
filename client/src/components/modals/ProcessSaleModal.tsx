@@ -189,13 +189,13 @@ export default function ProcessSaleModal({ open, onOpenChange }: ProcessSaleModa
               <Label htmlFor="customer">Customer (Optional)</Label>
               <Select 
                 onValueChange={(value) => form.setValue("customerId", value ? parseInt(value) : undefined)}
-                value={form.watch("customerId")?.toString() || ""}
+                value={form.watch("customerId")?.toString() || "0"}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select customer or walk-in" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Walk-in Customer</SelectItem>
+                  <SelectItem value="0">Walk-in Customer</SelectItem>
                   {customers?.map((customer: any) => (
                     <SelectItem key={customer.id} value={customer.id.toString()}>
                       {customer.fullName}
