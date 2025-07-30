@@ -65,9 +65,18 @@ export default function Register() {
       setLocation("/login");
     },
     onError: (error: any) => {
+      let message = error.message || "Registration failed";
+      if (message.toLowerCase().includes("username already exists")) {
+        message = "Username already exists. Please choose another.";
+      } else if (message.toLowerCase().includes("email already registered")) {
+        message = "Email is already in use. Try resetting your password.";
+      } else if (message.toLowerCase().includes("invalid role")) {
+        message = "Invalid role selected. Please refresh the page.";
+      }
+
       toast({
         title: "Error",
-        description: error.message || "Registration failed",
+        description: message,
         variant: "destructive",
       });
     },
