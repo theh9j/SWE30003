@@ -46,13 +46,7 @@ export default function Prescriptions() {
 
 const getStatusBadgeClass = (status: string) => {
   switch (status) {
-    case "pending":
-      return "bg-yellow-100 text-yellow-800";
-    case "verified":
-      return "bg-blue-100 text-blue-800";
-    case "dispensed":
-      return "bg-green-100 text-green-800";
-    case "rejected":
+    case "discard":
       return "bg-red-100 text-red-800";
     case "active":
       return "bg-green-100 text-green-800"; // Add this line
@@ -87,7 +81,7 @@ const getStatusBadgeClass = (status: string) => {
   const handleReject = (id: number) => {
     updatePrescriptionMutation.mutate({
       id,
-      data: { status: "rejected" }
+      data: { status: "Discard" }
     });
   };
 
@@ -171,7 +165,7 @@ const getStatusBadgeClass = (status: string) => {
                     </td>
                     <td className="py-4">
                       <Badge className={getStatusBadgeClass(prescription.status)}>
-                        {prescription.status === "rejected"
+                        {prescription.status === "Discard"
                           ? "Expired"
                           : prescription.status.charAt(0).toUpperCase() + prescription.status.slice(1)}
                       </Badge>

@@ -69,7 +69,7 @@ export const api = {
     return res.json();
   },
   updateUser: async (id: number, data: any) => {
-    const res = await fetch(`/api/users/${id}`, {
+    const res = await fetch(`/api/accounts/profile`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -165,17 +165,20 @@ export const api = {
     return ensureArray(data);
   },
 
-  createSale: async (saleData: any) => {
+  createSale: async (data: any) => {
     const res = await fetch("/api/sales", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       credentials: "include",
-      body: JSON.stringify(saleData),
+      body: JSON.stringify(data),
     });
+
     if (!res.ok) {
-      const error = await res.json().catch(() => ({}));
-      throw new Error(error.detail || "Failed to create sale");
+      throw new Error("Failed to create sale");
     }
+
     return res.json();
   },
 

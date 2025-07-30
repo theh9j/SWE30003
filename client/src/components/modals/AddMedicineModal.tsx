@@ -28,6 +28,9 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
     description: "",
     requiresPrescription: false,
     initialQuantity: 0,
+    minStock: 10,
+    batchNumber: "BATCH",
+    expiry: "",
   });
 
   const { data: categories } = useQuery({
@@ -37,13 +40,30 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const newMedicine = await api.createMedicine(form);
+      const isValidBatch = /^BATCH\d{4}$/.test(form.batchNumber);
+      if (!isValidBatch) {
+        throw new Error("Batch number must be in the format BATCH####");
+      }
+
+      const { initialQuantity, minStock, batchNumber, expiry, ...medicineData } = form;
+
+      const payload = {
+        medicine: medicineData,
+        inventory: {
+          initialQuantity,
+          minStock,
+          batchNumber,
+          expiry,
+        },
+      };
+
+      const newMedicine = await api.createMedicine(payload);
 
       if (form.initialQuantity && newMedicine?.id) {
         await api.createInventory({
           medicineId: newMedicine.id,
           quantity: form.initialQuantity,
-          minStockLevel: 10,
+          minStockLevel: form.minStock,
         });
       }
 
@@ -55,8 +75,12 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
       queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
       onOpenChange(false);
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to add medicine", variant: "destructive" });
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add medicine",
+        variant: "destructive",
+      });
     },
   });
 
@@ -76,11 +100,19 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
           <div className="space-y-4">
             <div>
               <Label>Name</Label>
-              <Input value={form.name} onChange={(e) => handleChange("name", e.target.value)} />
+              <Input
+                placeholder="e.g. Amoxicillin"
+                value={form.name}
+                onChange={(e) => handleChange("name", e.target.value)}
+              />
             </div>
             <div>
               <Label>SKU</Label>
-              <Input value={form.sku} onChange={(e) => handleChange("sku", e.target.value)} />
+              <Input
+                placeholder="e.g. AMX100"
+                value={form.sku}
+                onChange={(e) => handleChange("sku", e.target.value)}
+              />
             </div>
             <div>
               <Label>Category</Label>
@@ -102,7 +134,20 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
             </div>
             <div>
               <Label>Dosage</Label>
-              <Input value={form.dosage} onChange={(e) => handleChange("dosage", e.target.value)} />
+              <Input
+                placeholder="e.g. 500mg"
+                value={form.dosage}
+                onChange={(e) => handleChange("dosage", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Min Stock</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 10"
+                value={form.minStock}
+                onChange={(e) => handleChange("minStock", parseInt(e.target.value) || 0)}
+              />
             </div>
           </div>
 
@@ -110,13 +155,18 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
           <div className="space-y-4">
             <div>
               <Label>Manufacturer</Label>
-              <Input value={form.manufacturer} onChange={(e) => handleChange("manufacturer", e.target.value)} />
+              <Input
+                placeholder="e.g. Pfizer"
+                value={form.manufacturer}
+                onChange={(e) => handleChange("manufacturer", e.target.value)}
+              />
             </div>
             <div>
               <Label>Price</Label>
               <Input
                 type="number"
                 step="0.01"
+                placeholder="e.g. 12.50"
                 value={form.price}
                 onChange={(e) => handleChange("price", parseFloat(e.target.value))}
               />
@@ -125,13 +175,37 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
               <Label>Initial Quantity</Label>
               <Input
                 type="number"
+                placeholder="e.g. 100"
                 value={form.initialQuantity}
                 onChange={(e) => handleChange("initialQuantity", parseInt(e.target.value))}
               />
             </div>
             <div>
+              <Label>Batch Number</Label>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">Batch:</span>
+                <Input
+                  placeholder="1234"
+                  value={form.batchNumber.replace("BATCH", "")}
+                  onChange={(e) => {
+                    const numericPart = e.target.value.replace(/\D/g, "").slice(0, 4); // max 4 digits
+                    handleChange("batchNumber", `BATCH${numericPart}`);
+                  }}
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Expiry Date</Label>
+              <Input
+                type="date"
+                value={form.expiry}
+                onChange={(e) => handleChange("expiry", e.target.value)}
+              />
+            </div>
+            <div>
               <Label>Description</Label>
               <Textarea
+                placeholder="Optional notes about this medicine"
                 rows={3}
                 value={form.description}
                 onChange={(e) => handleChange("description", e.target.value)}
