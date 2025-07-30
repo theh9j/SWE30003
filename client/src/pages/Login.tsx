@@ -40,28 +40,33 @@ export default function Login() {
         },
         body: JSON.stringify(data),
       });
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || "Login failed");
       }
+
       return response.json();
     },
     onSuccess: () => {
-      // Clear and refetch authentication state
       queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
       toast({
         title: "Success",
         description: "Logged in successfully",
       });
-      // Small delay to ensure query invalidation completes
       setTimeout(() => {
         setLocation("/");
       }, 100);
     },
     onError: (error: any) => {
+      let message = error.message || "Login failed";
+      if (message.toLowerCase().includes("suspended")) {
+        message = "Your account has been suspended";
+      }
+
       toast({
         title: "Error",
-        description: error.message || "Login failed",
+        description: message,
         variant: "destructive",
       });
     },
@@ -107,8 +112,8 @@ export default function Login() {
                   </FormItem>
                 )}
               />
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full bg-green-600 hover:bg-green-700"
                 disabled={loginMutation.isPending}
               >
