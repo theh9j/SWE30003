@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, Response, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import Column, Integer, String, create_engine, DateTime, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, create_engine, DateTime, ForeignKey, Date, Float, Boolean, Text
 from sqlalchemy.orm import relationship
 from typing import Optional
 from datetime import datetime
@@ -50,6 +50,51 @@ class Account(Base):
     status = Column(String, default="active")
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class Category(Base):
+    __tablename__ = "categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship
+    medicines = relationship("Medicine", back_populates="category")
+
+class Medicine(Base):
+    __tablename__ = "medicines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    sku = Column(String, nullable=False, unique=True)
+    category_id = Column(Integer, ForeignKey("categories.id"))
+    description = Column(Text, nullable=True)
+    dosage = Column(String, nullable=True)
+    manufacturer = Column(String, nullable=True)
+    price = Column(Float, nullable=False)
+    requires_prescription = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship
+    category = relationship("Category", back_populates="medicines")
+    inventory_items = relationship("Inventory", back_populates="medicine")
+
+class Inventory(Base):
+    __tablename__ = "inventory"
+
+    id = Column(Integer, primary_key=True, index=True)
+    medicine_id = Column(Integer, ForeignKey("medicines.id"))
+    quantity = Column(Integer, default=0)
+    min_stock_level = Column(Integer, default=10)
+    batch_number = Column(String, nullable=True)
+    expiry_date = Column(Date, nullable=True)
+    supplier = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship
+    medicine = relationship("Medicine", back_populates="inventory_items")
 
 class Prescription(Base):
     __tablename__ = "prescriptions"
@@ -120,7 +165,93 @@ class UpdateCustomerData(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
-        
+
+class CategoryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class CategoryOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    created_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class MedicineCreate(BaseModel):
+    name: str
+    sku: str
+    categoryId: int
+    description: Optional[str] = None
+    dosage: Optional[str] = None
+    manufacturer: Optional[str] = None
+    price: float
+    requiresPrescription: bool = False
+
+class MedicineUpdate(BaseModel):
+    name: Optional[str] = None
+    sku: Optional[str] = None
+    categoryId: Optional[int] = None
+    description: Optional[str] = None
+    dosage: Optional[str] = None
+    manufacturer: Optional[str] = None
+    price: Optional[float] = None
+    requiresPrescription: Optional[bool] = None
+
+class MedicineOut(BaseModel):
+    id: int
+    name: str
+    sku: str
+    categoryId: int
+    description: Optional[str]
+    dosage: Optional[str]
+    manufacturer: Optional[str]
+    price: float
+    requiresPrescription: bool
+    created_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class InventoryCreate(BaseModel):
+    medicineId: int
+    quantity: int
+    minStockLevel: int = 10
+    batchNumber: Optional[str] = None
+    expiryDate: Optional[date] = None
+    supplier: Optional[str] = None
+
+class InventoryOut(BaseModel):
+    id: int
+    medicineId: int
+    quantity: int
+    minStockLevel: int
+    batchNumber: Optional[str]
+    expiryDate: Optional[date]
+    supplier: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+
+    @classmethod
+    def from_orm(cls, obj):
+        return cls(
+            id=obj.id,
+            medicineId=obj.medicine_id,
+            quantity=obj.quantity,
+            minStockLevel=obj.min_stock_level,
+            batchNumber=obj.batch_number,
+            expiryDate=obj.expiry_date,
+            supplier=obj.supplier,
+            created_at=obj.created_at,
+            updated_at=obj.updated_at
+        )
 
 # === DB Dependency ===
 def get_db():
@@ -130,9 +261,23 @@ def get_db():
     finally:
         db.close()
 
-# === Miscellaneous ===
+# === Helper Functions ===
+def get_current_user(request: Request, db: Session):
+    username = request.cookies.get("session_user")
+    if not username:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    user = db.query(Account).filter(Account.username == username).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    return user
+
 def is_admin(user: Account) -> bool:
     return user.role == "admin"
+
+def is_pharmacist_or_admin(user: Account) -> bool:
+    return user.role in ["pharmacist", "admin"]
 
 # MANUAL LOGOUT (TEMP)
 @app.get("/manual-logout")
@@ -205,6 +350,66 @@ def on_boot():
 
     db.commit()  # Commit users before using them
 
+    # Seed categories
+    categories_data = [
+        ("Pain Relief", "Medications for pain management"),
+        ("Antibiotics", "Antimicrobial medications"),
+        ("Vitamins", "Vitamin supplements"),
+        ("Heart Medication", "Cardiovascular medications"),
+        ("Diabetes", "Diabetes management medications"),
+        ("Cold & Flu", "Medications for cold and flu symptoms"),
+    ]
+
+    for name, description in categories_data:
+        if not db.query(Category).filter(Category.name == name).first():
+            db.add(Category(name=name, description=description))
+
+    db.commit()  # Commit categories before using them
+
+    # Seed medicines
+    categories = db.query(Category).all()
+    medicines_data = [
+        ("Paracetamol", "PARA500", "Pain Relief", "Effective pain and fever relief", "500mg", "Generic Pharma", 5.99, False),
+        ("Amoxicillin", "AMOX250", "Antibiotics", "Broad-spectrum antibiotic", "250mg", "MedCorp", 12.50, True),
+        ("Vitamin C", "VITC1000", "Vitamins", "Immune system support", "1000mg", "HealthPlus", 8.99, False),
+        ("Lisinopril", "LISI10", "Heart Medication", "ACE inhibitor for blood pressure", "10mg", "CardioMed", 15.75, True),
+        ("Metformin", "METF500", "Diabetes", "Type 2 diabetes medication", "500mg", "DiaCare", 18.25, True),
+        ("Ibuprofen", "IBU200", "Pain Relief", "Anti-inflammatory pain reliever", "200mg", "Generic Pharma", 7.50, False),
+    ]
+
+    category_dict = {cat.name: cat.id for cat in categories}
+
+    for name, sku, cat_name, desc, dosage, manufacturer, price, requires_rx in medicines_data:
+        if not db.query(Medicine).filter(Medicine.sku == sku).first():
+            medicine = Medicine(
+                name=name,
+                sku=sku,
+                category_id=category_dict.get(cat_name, 1),
+                description=desc,
+                dosage=dosage,
+                manufacturer=manufacturer,
+                price=price,
+                requires_prescription=requires_rx
+            )
+            db.add(medicine)
+
+    db.commit()  # Commit medicines before creating inventory
+
+    # Seed inventory
+    medicines = db.query(Medicine).all()
+    for medicine in medicines:
+        if not db.query(Inventory).filter(Inventory.medicine_id == medicine.id).first():
+            inventory = Inventory(
+                medicine_id=medicine.id,
+                quantity=random.randint(5, 100),
+                min_stock_level=random.randint(10, 20),
+                batch_number=f"BATCH{random.randint(1000, 9999)}",
+                expiry_date=date.today() + timedelta(days=random.randint(30, 365)),
+                supplier=f"Supplier {random.randint(1, 5)}"
+            )
+            db.add(inventory)
+
+    # Seed prescriptions
     customers = db.query(Account).filter(Account.role == "customer").all()
     pharmacists = db.query(Account).filter(Account.role == "pharmacist").all()
 
@@ -232,8 +437,7 @@ def on_boot():
     db.commit()
     db.close()
 
-
-# === Login Endpoint ===
+# === Authentication Endpoints ===
 @app.post("/api/auth/login")
 def login(data: LoginData, db: Session = Depends(get_db)):
     account = db.query(Account).filter(Account.username == data.username).first()
@@ -254,19 +458,17 @@ def login(data: LoginData, db: Session = Depends(get_db)):
         key="session_user",
         value=account.username,
         httponly=True,
-        samesite="Lax",  # or "Strict"
+        samesite="Lax",
     )
 
     return response
 
-# === Logout Endpoint ===
 @app.post("/api/auth/logout")
 def logout():
     response = JSONResponse(content={"message": "Logged out"})
     response.delete_cookie("session_user")
     return response
 
-# === Register Endpoint ===
 @app.post("/api/auth/register")
 def register(data: RegisterData, db: Session = Depends(get_db)):
     if db.query(Account).filter(Account.username == data.username).first():
@@ -319,7 +521,7 @@ def auth_me(request: Request, db: Session = Depends(get_db)):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
-#ACCOUNT MANAGER
+# === Account Management ===
 @app.put("/api/accounts/{target_username}/state")
 def state_change_account(target_username: str, db: Session = Depends(get_db), request: Request = None):
     session_user = request.cookies.get("session_user")
@@ -341,20 +543,17 @@ def state_change_account(target_username: str, db: Session = Depends(get_db), re
     
 @app.post("/api/users")
 def create_customer(data: RegisterData, db: Session = Depends(get_db), request: Request = None):
-    # Optional auth check
     session_user = request.cookies.get("session_user") if request else None
     if session_user:
         current = db.query(Account).filter(Account.username == session_user).first()
         if not current or current.role != "admin":
             raise HTTPException(status_code=403, detail="Only admin can create customer accounts")
 
-    # Check if username/email already exist
     if db.query(Account).filter(Account.username == data.username).first():
         raise HTTPException(status_code=400, detail="Username already exists")
     if db.query(Account).filter(Account.email == data.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Role must be customer
     if data.role != "customer":
         raise HTTPException(status_code=400, detail="Only 'customer' accounts can be created here")
 
@@ -400,11 +599,298 @@ def update_customer(user_id: int, data: UpdateCustomerData, db: Session = Depend
 
     return {"message": "Customer updated successfully"}
 
-#Prescription
-router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
+@app.get("/api/users")
+def get_users(role: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(Account)
+    if role:
+        query = query.filter(Account.role == role)
+    users = query.all()
+    return [
+        {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "fullName": user.full_name,
+            "phone": user.phone_number,
+            "address": user.address,
+            "role": user.role,
+            "isActive": user.status == "active",
+            "createdAt": user.created_at
+        }
+        for user in users
+    ]
 
-@router.get("", response_model=list[PrescriptionOut])
-@router.get("/", response_model=list[PrescriptionOut])
+# === Category Endpoints ===
+@app.get("/api/categories")
+def get_categories(db: Session = Depends(get_db)):
+    categories = db.query(Category).all()
+    return [
+        {
+            "id": category.id,
+            "name": category.name,
+            "description": category.description,
+            "created_at": category.created_at
+        }
+        for category in categories
+    ]
+
+@app.post("/api/categories")
+def create_category(category: CategoryCreate, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Only admin can create categories")
+
+    if db.query(Category).filter(Category.name == category.name).first():
+        raise HTTPException(status_code=400, detail="Category name already exists")
+
+    new_category = Category(
+        name=category.name,
+        description=category.description
+    )
+    db.add(new_category)
+    db.commit()
+    db.refresh(new_category)
+
+    return {
+        "id": new_category.id,
+        "name": new_category.name,
+        "description": new_category.description,
+        "created_at": new_category.created_at
+    }
+
+# === Medicine Endpoints ===
+@app.get("/api/medicines")
+def get_medicines(db: Session = Depends(get_db)):
+    medicines = db.query(Medicine).all()
+    return [
+        {
+            "id": medicine.id,
+            "name": medicine.name,
+            "sku": medicine.sku,
+            "categoryId": medicine.category_id,
+            "description": medicine.description,
+            "dosage": medicine.dosage,
+            "manufacturer": medicine.manufacturer,
+            "price": medicine.price,
+            "requiresPrescription": medicine.requires_prescription,
+            "created_at": medicine.created_at
+        }
+        for medicine in medicines
+    ]
+
+@app.post("/api/medicines")
+def create_medicine(medicine: MedicineCreate, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not is_pharmacist_or_admin(current_user):
+        raise HTTPException(status_code=403, detail="Only pharmacists and admins can create medicines")
+
+    # Check if SKU already exists
+    if db.query(Medicine).filter(Medicine.sku == medicine.sku).first():
+        raise HTTPException(status_code=400, detail="SKU already exists")
+
+    # Verify category exists
+    category = db.query(Category).filter(Category.id == medicine.categoryId).first()
+    if not category:
+        raise HTTPException(status_code=400, detail="Category not found")
+
+    new_medicine = Medicine(
+        name=medicine.name,
+        sku=medicine.sku,
+        category_id=medicine.categoryId,
+        description=medicine.description,
+        dosage=medicine.dosage,
+        manufacturer=medicine.manufacturer,
+        price=medicine.price,
+        requires_prescription=medicine.requiresPrescription
+    )
+    db.add(new_medicine)
+    db.commit()
+    db.refresh(new_medicine)
+
+    # Create initial inventory entry
+    inventory = Inventory(
+        medicine_id=new_medicine.id,
+        quantity=0,
+        min_stock_level=10
+    )
+    db.add(inventory)
+    db.commit()
+
+    return {
+        "id": new_medicine.id,
+        "name": new_medicine.name,
+        "sku": new_medicine.sku,
+        "categoryId": new_medicine.category_id,
+        "description": new_medicine.description,
+        "dosage": new_medicine.dosage,
+        "manufacturer": new_medicine.manufacturer,
+        "price": new_medicine.price,
+        "requiresPrescription": new_medicine.requires_prescription,
+        "created_at": new_medicine.created_at
+    }
+
+@app.get("/api/medicines/{medicine_id}")
+def get_medicine(medicine_id: int, db: Session = Depends(get_db)):
+    medicine = db.query(Medicine).filter(Medicine.id == medicine_id).first()
+    if not medicine:
+        raise HTTPException(status_code=404, detail="Medicine not found")
+    
+    return {
+        "id": medicine.id,
+        "name": medicine.name,
+        "sku": medicine.sku,
+        "categoryId": medicine.category_id,
+        "description": medicine.description,
+        "dosage": medicine.dosage,
+        "manufacturer": medicine.manufacturer,
+        "price": medicine.price,
+        "requiresPrescription": medicine.requires_prescription,
+        "created_at": medicine.created_at
+    }
+
+@app.put("/api/medicines/{medicine_id}")
+def update_medicine(medicine_id: int, medicine_update: MedicineUpdate, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not is_pharmacist_or_admin(current_user):
+        raise HTTPException(status_code=403, detail="Only pharmacists and admins can update medicines")
+
+    medicine = db.query(Medicine).filter(Medicine.id == medicine_id).first()
+    if not medicine:
+        raise HTTPException(status_code=404, detail="Medicine not found")
+
+    # Check SKU uniqueness if it's being updated
+    if medicine_update.sku and medicine_update.sku != medicine.sku:
+        if db.query(Medicine).filter(Medicine.sku == medicine_update.sku).first():
+            raise HTTPException(status_code=400, detail="SKU already exists")
+
+    # Verify category exists if it's being updated
+    if medicine_update.categoryId:
+        category = db.query(Category).filter(Category.id == medicine_update.categoryId).first()
+        if not category:
+            raise HTTPException(status_code=400, detail="Category not found")
+
+    # Update fields
+    update_data = medicine_update.dict(exclude_unset=True)
+    if 'categoryId' in update_data:
+        update_data['category_id'] = update_data.pop('categoryId')
+    if 'requiresPrescription' in update_data:
+        update_data['requires_prescription'] = update_data.pop('requiresPrescription')
+
+    for field, value in update_data.items():
+        setattr(medicine, field, value)
+
+    db.commit()
+    db.refresh(medicine)
+
+    return {
+        "id": medicine.id,
+        "name": medicine.name,
+        "sku": medicine.sku,
+        "categoryId": medicine.category_id,
+        "description": medicine.description,
+        "dosage": medicine.dosage,
+        "manufacturer": medicine.manufacturer,
+        "price": medicine.price,
+        "requiresPrescription": medicine.requires_prescription,
+        "created_at": medicine.created_at
+    }
+
+@app.delete("/api/medicines/{medicine_id}")
+def delete_medicine(medicine_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not is_pharmacist_or_admin(current_user):
+        raise HTTPException(status_code=403, detail="Only pharmacists and admins can delete medicines")
+
+    medicine = db.query(Medicine).filter(Medicine.id == medicine_id).first()
+    if not medicine:
+        raise HTTPException(status_code=404, detail="Medicine not found")
+
+    # Delete associated inventory records
+    db.query(Inventory).filter(Inventory.medicine_id == medicine_id).delete()
+    
+    # Delete the medicine
+    db.delete(medicine)
+    db.commit()
+
+    return {"message": "Medicine deleted successfully"}
+
+# === Inventory Endpoints ===
+@app.get("/api/inventory")
+def get_inventory(db: Session = Depends(get_db)):
+    inventory = db.query(Inventory).all()
+    return [
+        {
+            "id": item.id,
+            "medicineId": item.medicine_id,
+            "quantity": item.quantity,
+            "minStockLevel": item.min_stock_level,
+            "batchNumber": item.batch_number,
+            "expiryDate": item.expiry_date,
+            "supplier": item.supplier,
+            "created_at": item.created_at,
+            "updated_at": item.updated_at
+        }
+        for item in inventory
+    ]
+
+@app.get("/api/inventory/low-stock")
+def get_low_stock_items(db: Session = Depends(get_db)):
+    inventory = db.query(Inventory).filter(Inventory.quantity <= Inventory.min_stock_level).all()
+    return [
+        {
+            "id": item.id,
+            "medicineId": item.medicine_id,
+            "quantity": item.quantity,
+            "minStockLevel": item.min_stock_level,
+            "batchNumber": item.batch_number,
+            "expiryDate": item.expiry_date,
+            "supplier": item.supplier,
+            "created_at": item.created_at,
+            "updated_at": item.updated_at
+        }
+        for item in inventory
+    ]
+
+@app.post("/api/inventory")
+def create_inventory(inventory: InventoryCreate, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not is_pharmacist_or_admin(current_user):
+        raise HTTPException(status_code=403, detail="Only pharmacists and admins can manage inventory")
+
+    # Verify medicine exists
+    medicine = db.query(Medicine).filter(Medicine.id == inventory.medicineId).first()
+    if not medicine:
+        raise HTTPException(status_code=400, detail="Medicine not found")
+
+    new_inventory = Inventory(
+        medicine_id=inventory.medicineId,
+        quantity=inventory.quantity,
+        min_stock_level=inventory.minStockLevel,
+        batch_number=inventory.batchNumber,
+        expiry_date=inventory.expiryDate,
+        supplier=inventory.supplier
+    )
+    db.add(new_inventory)
+    db.commit()
+    db.refresh(new_inventory)
+
+    return {
+        "id": new_inventory.id,
+        "medicineId": new_inventory.medicine_id,
+        "quantity": new_inventory.quantity,
+        "minStockLevel": new_inventory.min_stock_level,
+        "batchNumber": new_inventory.batch_number,
+        "expiryDate": new_inventory.expiry_date,
+        "supplier": new_inventory.supplier,
+        "created_at": new_inventory.created_at,
+        "updated_at": new_inventory.updated_at
+    }
+
+# === Prescription Endpoints ===
+prescription_router = APIRouter(prefix="/api/prescriptions", tags=["prescriptions"])
+
+@prescription_router.get("", response_model=list[PrescriptionOut])
+@prescription_router.get("/", response_model=list[PrescriptionOut])
 def get_prescriptions(db: Session = Depends(get_db)):
     prescriptions = db.query(Prescription).all()
 
@@ -452,26 +938,19 @@ def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(
 
     return {"message": "Prescription created successfully"}
 
-#Customers
-@app.get("/api/users")
-def get_users(role: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(Account)
-    if role:
-        query = query.filter(Account.role == role)
-    users = query.all()
-    return [
-        {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "fullName": user.full_name,
-            "phone": user.phone_number,
-            "address": user.address,
-            "role": user.role,
-            "isActive": user.status == "active",
-            "createdAt": user.created_at
-        }
-        for user in users
-    ]
+# === Dashboard Stats ===
+@app.get("/api/dashboard/stats")
+def get_dashboard_stats(db: Session = Depends(get_db)):
+    total_medicines = db.query(Medicine).count()
+    total_customers = db.query(Account).filter(Account.role == "customer").count()
+    total_prescriptions = db.query(Prescription).count()
+    low_stock_count = db.query(Inventory).filter(Inventory.quantity <= Inventory.min_stock_level).count()
+    
+    return {
+        "totalMedicines": total_medicines,
+        "totalCustomers": total_customers,
+        "totalPrescriptions": total_prescriptions,
+        "lowStockItems": low_stock_count
+    }
 
-app.include_router(router)
+app.include_router(prescription_router)
