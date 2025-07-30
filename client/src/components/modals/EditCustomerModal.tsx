@@ -92,9 +92,7 @@ export default function EditCustomerModal({
             disabled={
               mutation.isPending ||
               !form.fullName.trim() ||
-              !form.email.trim() ||
-              !form.phone.trim() ||
-              !form.address.trim()
+              !form.email.trim()
             }
           >
             {mutation.isPending ? "Saving..." : "Save Changes"}
