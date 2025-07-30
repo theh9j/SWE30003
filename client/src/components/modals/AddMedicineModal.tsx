@@ -13,7 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -82,16 +88,10 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
   });
 
   const onSubmit = (data: MedicineFormData) => {
-    if (step === 1) {
-      setStep(2);
-      return;
-    }
-
     const medicineData = {
       ...data,
       price: parseFloat(data.price),
     };
-
     createMedicineMutation.mutate(medicineData);
   };
 
@@ -101,25 +101,24 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
     onOpenChange(false);
   };
 
+  const handleNext = async () => {
+    const isValid = await form.trigger(["name", "sku", "categoryId"]);
+    if (isValid) setStep(2);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            Add New Medicine - Step {step} of 2
-          </DialogTitle>
+          <DialogTitle>Add New Medicine - Step {step} of 2</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           {step === 1 && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="name">Medicine Name *</Label>
-                <Input
-                  id="name"
-                  {...form.register("name")}
-                  placeholder="Enter medicine name"
-                />
+                <Input id="name" {...form.register("name")} placeholder="Enter medicine name" />
                 {form.formState.errors.name && (
                   <p className="text-sm text-red-600">{form.formState.errors.name.message}</p>
                 )}
@@ -127,11 +126,7 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
 
               <div className="space-y-2">
                 <Label htmlFor="sku">SKU *</Label>
-                <Input
-                  id="sku"
-                  {...form.register("sku")}
-                  placeholder="Enter SKU"
-                />
+                <Input id="sku" {...form.register("sku")} placeholder="Enter SKU" />
                 {form.formState.errors.sku && (
                   <p className="text-sm text-red-600">{form.formState.errors.sku.message}</p>
                 )}
@@ -139,7 +134,7 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
 
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
-                <Select 
+                <Select
                   onValueChange={(value) => form.setValue("categoryId", parseInt(value))}
                   value={form.watch("categoryId") ? form.watch("categoryId").toString() : ""}
                 >
@@ -209,7 +204,9 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
                 <Checkbox
                   id="prescription"
                   checked={form.watch("requiresPrescription")}
-                  onCheckedChange={(checked) => form.setValue("requiresPrescription", checked as boolean)}
+                  onCheckedChange={(checked) =>
+                    form.setValue("requiresPrescription", checked as boolean)
+                  }
                 />
                 <Label htmlFor="prescription">Requires prescription</Label>
               </div>
@@ -218,23 +215,22 @@ export default function AddMedicineModal({ open, onOpenChange }: AddMedicineModa
 
           <div className="flex justify-end space-x-3 pt-4">
             {step === 2 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep(1)}
-              >
+              <Button type="button" variant="outline" onClick={() => setStep(1)}>
                 Back
               </Button>
             )}
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button 
-              type="submit"
-              disabled={createMedicineMutation.isPending}
-            >
-              {step === 1 ? "Next" : createMedicineMutation.isPending ? "Adding..." : "Add Medicine"}
-            </Button>
+            {step === 1 ? (
+              <Button type="button" onClick={handleNext}>
+                Next
+              </Button>
+            ) : (
+              <Button type="submit" disabled={createMedicineMutation.isPending}>
+                {createMedicineMutation.isPending ? "Adding..." : "Add Medicine"}
+              </Button>
+            )}
           </div>
         </form>
       </DialogContent>
