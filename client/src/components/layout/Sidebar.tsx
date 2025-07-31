@@ -133,17 +133,6 @@ export default function Sidebar() {
             </li>
           </ul>
         </div>
-
-        <div className="mt-8 px-3 border-t border-gray-200 pt-4">
-          <button
-            onClick={handleLogout}
-            disabled={logoutMutation.isPending}
-            className="w-full text-gray-700 hover:bg-gray-50 flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-          >
-            <LogOut className="mr-3 h-4 w-4" />
-            {logoutMutation.isPending ? "Logging out..." : "Logout"}
-          </button>
-        </div>
       </nav>
     </aside>
   );
