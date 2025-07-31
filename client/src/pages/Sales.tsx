@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Eye } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import ProcessSaleModal from "@/components/modals/ProcessSaleModal";
 import TopBar from "@/components/layout/TopBar";
@@ -166,7 +166,7 @@ export default function Sales() {
                     <td className="py-4">
                       <div className="flex space-x-2">
                         <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </td>
