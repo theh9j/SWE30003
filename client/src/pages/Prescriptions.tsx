@@ -98,6 +98,7 @@ export default function Prescriptions() {
     });
   };
 
+  // Pharmacist notification for new active prescriptions
   useEffect(() => {
     if (user?.role !== "pharmacist") return;
 
@@ -109,6 +110,24 @@ export default function Prescriptions() {
       toast({
         title: "New Prescription Alert",
         description: `You have ${newPrescriptions.length} prescription(s) needing attention.`,
+      });
+    }
+  }, [prescriptions, user]);
+
+  // Customer notification for approved prescriptions
+  useEffect(() => {
+    if (user?.role !== "customer") return;
+
+    const approvedPrescriptions = prescriptions?.filter(
+      (p: any) =>
+        p.customerId === user.username &&
+        p.status?.toLowerCase() === "approved"
+    );
+
+    if (approvedPrescriptions?.length > 0) {
+      toast({
+        title: "Prescription Approved",
+        description: `Your prescription ${approvedPrescriptions[0].prescriptionNumber} has been approved.`,
       });
     }
   }, [prescriptions, user]);
