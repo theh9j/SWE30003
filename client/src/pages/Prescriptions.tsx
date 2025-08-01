@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,16 @@ import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AddPrescriptionModal from "@/components/modals/AddPrescriptionModal";
-import TopBar from "@/components/layout/TopBar";
 
 export default function Prescriptions() {
   const [showAddPrescription, setShowAddPrescription] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+
+  const { data: user } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: () => api.getMe(),
+  });
 
   const { data: prescriptions, isLoading } = useQuery({
     queryKey: ["/api/prescriptions"],
@@ -44,16 +48,18 @@ export default function Prescriptions() {
     },
   });
 
-const getStatusBadgeClass = (status: string) => {
-  switch (status) {
-    case "discard":
-      return "bg-red-100 text-red-800";
-    case "active":
-      return "bg-green-100 text-green-800"; // Add this line
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
+  const getStatusBadgeClass = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "discard":
+        return "bg-red-100 text-red-800";
+      case "active":
+        return "bg-green-100 text-green-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
 
   const getCustomerName = (customerUsername: string) => {
     if (!customers) return "Unknown";
@@ -85,14 +91,28 @@ const getStatusBadgeClass = (status: string) => {
     });
   };
 
+  // ✅ ALERT for pharmacist when there are new prescriptions
+  useEffect(() => {
+    if (user?.role !== "pharmacist") return;
+
+    const newPrescriptions = prescriptions?.filter((p: any) =>
+      ["active", "pending"].includes(p.status?.toLowerCase())
+    );
+
+    if (newPrescriptions?.length > 0) {
+      toast({
+        title: "New Prescription Alert",
+        description: `You have ${newPrescriptions.length} prescription(s) needing attention.`,
+      });
+    }
+  }, [prescriptions, user]);
+
   if (isLoading) {
     return (
-      <div>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-gray-500">Loading prescriptions...</p>
-          </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-500">Loading prescriptions...</p>
         </div>
       </div>
     );
@@ -126,24 +146,12 @@ const getStatusBadgeClass = (status: string) => {
             <table className="min-w-full">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Prescription #
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Doctor
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Issued Date
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Prescription #</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Issued Date</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -173,8 +181,8 @@ const getStatusBadgeClass = (status: string) => {
                     <td className="py-4">
                       <div className="flex space-x-2">
                         {prescription.status === "active" && (
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleReject(prescription.id)}
                             disabled={updatePrescriptionMutation.isPending}
