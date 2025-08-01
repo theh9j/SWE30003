@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search, X, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -53,9 +53,9 @@ export default function Prescriptions() {
       case "discard":
         return "bg-red-100 text-red-800";
       case "active":
-        return "bg-green-100 text-green-800";
-      case "pending":
         return "bg-yellow-100 text-yellow-800";
+      case "approved":
+        return "bg-green-100 text-green-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -87,11 +87,17 @@ export default function Prescriptions() {
   const handleReject = (id: number) => {
     updatePrescriptionMutation.mutate({
       id,
-      data: { status: "Discard" }
+      data: { status: "Discard" },
     });
   };
 
-  // ✅ ALERT for pharmacist when there are new prescriptions
+  const handleApprove = (id: number) => {
+    updatePrescriptionMutation.mutate({
+      id,
+      data: { status: "Approved" },
+    });
+  };
+
   useEffect(() => {
     if (user?.role !== "pharmacist") return;
 
@@ -146,12 +152,12 @@ export default function Prescriptions() {
             <table className="min-w-full">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Prescription #</th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Issued Date</th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase">Prescription #</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase">Customer</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase">Doctor</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase">Issued Date</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="text-left py-3 text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -181,15 +187,26 @@ export default function Prescriptions() {
                     <td className="py-4">
                       <div className="flex space-x-2">
                         {prescription.status === "active" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleReject(prescription.id)}
-                            disabled={updatePrescriptionMutation.isPending}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleApprove(prescription.id)}
+                              disabled={updatePrescriptionMutation.isPending}
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleReject(prescription.id)}
+                              disabled={updatePrescriptionMutation.isPending}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
