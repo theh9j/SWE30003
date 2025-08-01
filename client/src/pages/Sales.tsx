@@ -56,6 +56,16 @@ export default function Sales() {
     }
   };
 
+  const handleDeleteSale = async (saleId: number) => {
+
+    try {
+      await api.deleteSale(saleId);
+      window.location.reload(); // OR trigger a query refetch if using React Query
+    } catch (err: any) {
+      alert(err.message || "Failed to delete sale.");
+    }
+  };
+
   const filteredSales = sales?.filter((sale: any) =>
     sale.saleNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     getCustomerName(sale.customerId).toLowerCase().includes(searchTerm.toLowerCase())
@@ -165,8 +175,8 @@ export default function Sales() {
                     </td>
                     <td className="py-4">
                       <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Trash2 className="h-4 w-4" />
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteSale(sale.id)}>
+                          <Trash2 className="h-4 w-4 text-red-600" />
                         </Button>
                       </div>
                     </td>

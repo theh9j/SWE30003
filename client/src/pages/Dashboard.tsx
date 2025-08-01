@@ -159,7 +159,7 @@ export default function Dashboard() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Today's Sales</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {stats?.todaysSales || "$0.00"}
+                  {stats?.todaysSales || "$"+stats?.totalRevenue}
                 </p>
               </div>
             </div>
@@ -177,7 +177,7 @@ export default function Dashboard() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Prescriptions</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {stats?.todaysPrescriptions || 0}
+                  {stats?.totalPrescriptions || 0}
                 </p>
               </div>
             </div>

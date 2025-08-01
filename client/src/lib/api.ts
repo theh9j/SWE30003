@@ -165,6 +165,18 @@ export const api = {
     return ensureArray(data);
   },
 
+  deleteSale: async (saleId: number) => {
+    const res = await fetch(`/api/sales/${saleId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.detail || "Failed to delete sale");
+    }
+  },
+
   createSale: async (data: any) => {
     const res = await fetch("/api/sales", {
       method: "POST",

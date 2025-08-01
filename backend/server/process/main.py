@@ -15,6 +15,7 @@ from fastapi import Cookie
 from datetime import date
 from fastapi import Body
 from sqlalchemy import Text, DECIMAL
+from fastapi import status
 from typing import List
 import bcrypt
 import os
@@ -1284,6 +1285,27 @@ def create_sale(sale_data: SaleCreate, request: Request, db: Session = Depends(g
 
     return {"message": "Sale created successfully", "saleId": new_sale.id}
 
+@app.delete("/api/sales/{sale_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_sale(sale_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not is_pharmacist_or_admin(current_user):
+        raise HTTPException(status_code=403, detail="Only pharmacists and admins can delete sales")
+
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+
+    # Restore inventory before deletion if the sale is not refunded
+    if sale.status != "refunded":
+        for item in sale.sale_items:
+            inventory = db.query(Inventory).filter(Inventory.medicine_id == item.medicine_id).first()
+            if inventory:
+                inventory.quantity += item.quantity
+                inventory.updated_at = datetime.utcnow()
+
+    db.delete(sale)
+    db.commit()
+
 @app.put("/api/sales/{sale_id}")
 def update_sale(sale_id: int, status: str, request: Request, db: Session = Depends(get_db)):
     current_user = get_current_user(request, db)
@@ -1315,17 +1337,24 @@ def update_sale(sale_id: int, status: str, request: Request, db: Session = Depen
 # === Dashboard Stats ===
 @app.get("/api/dashboard/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):
+    from datetime import datetime, timedelta
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+
     total_medicines = db.query(Medicine).count()
     total_customers = db.query(Account).filter(Account.role == "customer").count()
     total_prescriptions = db.query(Prescription).count()
     low_stock_count = db.query(Inventory).filter(Inventory.quantity <= Inventory.min_stock_level).count()
-    
+
     total_sales = db.query(Sale).count()
-    today_sales = db.query(Sale).filter(
-        Sale.created_at >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    ).count()
-    
-    total_revenue = db.query(func.sum(Sale.total_amount)).filter(Sale.status == "completed").scalar() or 0
+    today_sales = db.query(Sale).filter(Sale.created_at >= today_start).count()
+
+    total_revenue = db.query(func.sum(Sale.total_amount)).filter(
+        Sale.status == "completed",
+        Sale.created_at >= today_start,
+        Sale.created_at < today_end
+    ).scalar() or 0
 
     return {
         "totalMedicines": total_medicines,
