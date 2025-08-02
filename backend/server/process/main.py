@@ -16,6 +16,7 @@ from datetime import date
 from fastapi import Body
 from sqlalchemy import Text, DECIMAL
 from fastapi import status
+from typing import Literal
 from typing import List
 import bcrypt
 import os
@@ -181,8 +182,7 @@ class PrescriptionCreate(BaseModel):
     notes: str | None = None
 
 class PrescriptionUpdate(BaseModel):
-    id: int
-    status: Optional[str] = None
+    status: Literal["Approved", "Discard"]
 
 class PrescriptionOut(BaseModel):
     id: int
@@ -532,7 +532,7 @@ def on_boot():
                 prescription_number=prescription_number,
                 issued_date=issued_date,
                 notes="Sample prescription",
-                status="active"
+                status="pending"
             ))
 
     db.commit()
@@ -1078,7 +1078,7 @@ def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(
         prescription_number=prescription.prescriptionNumber,
         issued_date=prescription.issuedDate,
         notes=prescription.notes,
-        status="active"
+        status="pending"
     )
 
     db.add(new_prescription)
@@ -1087,19 +1087,24 @@ def create_prescription(prescription: PrescriptionCreate, db: Session = Depends(
     return {"message": "Prescription created successfully"}
 
 @app.put("/api/prescriptions/{id}")
-def discard_prescription(id: int, request: Request, db: Session = Depends(get_db)):
+def update_prescription(
+    id: int,
+    update_data: PrescriptionUpdate,
+    request: Request,
+    db: Session = Depends(get_db)
+):
     current_user = get_current_user(request, db)
     if not is_pharmacist_or_admin(current_user):
-        raise HTTPException(status_code=403, detail="Only pharmacists and admins can discard prescriptions")
+        raise HTTPException(status_code=403, detail="Only pharmacists and admins can update prescriptions")
 
     presc = db.query(Prescription).filter(Prescription.id == id).first()
     if not presc:
         raise HTTPException(status_code=404, detail="Prescription not found")
 
-    presc.status = "discard"
+    presc.status = update_data.status.lower()
     db.commit()
 
-    return {"message": "Prescription discarded successfully"}
+    return {"message": "Prescription updated successfully"}
 
 @app.get("/api/sales")
 def get_sales(db: Session = Depends(get_db)):

@@ -52,10 +52,10 @@ export default function Prescriptions() {
     switch (status.toLowerCase()) {
       case "discard":
         return "bg-red-100 text-red-800";
-      case "active":
-        return "bg-yellow-100 text-yellow-800";
       case "approved":
         return "bg-green-100 text-green-800";
+      case "pending":
+        return "bg-cyan-100 text-cyan-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -103,7 +103,7 @@ export default function Prescriptions() {
     if (user?.role !== "pharmacist") return;
 
     const newPrescriptions = prescriptions?.filter((p: any) =>
-      ["active", "pending"].includes(p.status?.toLowerCase())
+      ["approved", "pending"].includes(p.status?.toLowerCase())
     );
 
     if (newPrescriptions?.length > 0) {
@@ -205,7 +205,7 @@ export default function Prescriptions() {
                     </td>
                     <td className="py-4">
                       <div className="flex space-x-2">
-                        {prescription.status === "active" && (
+                        {prescription.status === "pending" && (
                           <>
                             <Button
                               variant="ghost"

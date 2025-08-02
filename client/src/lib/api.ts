@@ -154,8 +154,21 @@ export const api = {
   getPrescription: (id: number) =>
     fetch(`/api/prescriptions/${id}`, { credentials: "include" }).then(res => res.json()),
 
-  updatePrescription: (id: number, prescriptionData: any) =>
-    apiRequest("PUT", `/api/prescriptions/${id}`, prescriptionData),
+  updatePrescription: async (id: number, data: string) => {
+    const res = await fetch(`/api/prescriptions/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.detail || "Failed to update prescription");
+    }
+
+    return res.json();
+  },
 
   // Sales
   getSales: async () => {
